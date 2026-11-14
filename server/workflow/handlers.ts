@@ -5,7 +5,7 @@ import { applySchema, listPublicTables } from "../db/prisma";
 import { SenateClient } from "../services/senate/client";
 import { armIncrementalSchedule, runBackfill, runIncremental } from "../services/senate/run";
 import { readScrapeState } from "../services/senate/store";
-import { ENVELOPE_KEYS, queryTrades, TRADE_KEYS } from "../services/trades";
+import { ENVELOPE_KEYS, parseTradeQuery, queryTrades, TRADE_KEYS } from "../services/trades";
 import { REQUIRED_TABLES } from "./evaluate";
 import type { HandlerOutput } from "./types";
 import type { StepHandler } from "./runner";
@@ -61,8 +61,10 @@ export const handlers: Record<string, StepHandler> = {
   async "serve-api"(): Promise<HandlerOutput> {
     const expected = "GET /trades/recent devolve o envelope da CongressInvests.";
     try {
-      const recent = await queryTrades({ limit: 1, offset: 0, days: null, chamber: null, ticker: null });
-      const house = await queryTrades({ limit: 5, offset: 0, days: null, chamber: "House", ticker: null });
+      const recent = await queryTrades(parseTradeQuery(new URLSearchParams({ limit: "1", offset: "0" })));
+      const house = await queryTrades(
+        parseTradeQuery(new URLSearchParams({ limit: "5", offset: "0", chamber: "House" })),
+      );
       const envelope = ENVELOPE_KEYS.every((key) => key in recent);
       const tradesOk = recent.trades.every((trade) => TRADE_KEYS.every((key) => key in trade));
       const houseOnly = house.trades.every((trade) => trade.chamber === "House");
