@@ -2,7 +2,7 @@
 services:
   postgres:
     ports:
-      - "${POSTGRES_PORTS:-127.0.0.1:7000:5432}"
+      - "${POSTGRES_PORTS:-127.0.0.1:7001:5432}"
 
   app:
     profiles: ["app"]

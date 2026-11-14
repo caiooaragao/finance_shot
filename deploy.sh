@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# Deploy local: Postgres na porta 7000 (host) e Next.js em http://0.0.0.0:7000.
+# Deploy local: Postgres em 127.0.0.1:7001 (host) e app em http://0.0.0.0:7000.
 # Uso (Git Bash / WSL): ./deploy.sh          (Postgres no Docker + next start)
-#                      ./deploy.sh docker    (Postgres + app no Docker; se a porta 7000 conflitar)
+#                      ./deploy.sh docker    (Postgres + app no Docker)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
-APP_PORT="${APP_PORT:-7000}"
-POSTGRES_PORTS="${POSTGRES_PORTS:-127.0.0.1:7000:5432}"
-DATABASE_URL="${DATABASE_URL:-postgresql://finance:finance@127.0.0.1:7000/finance_shot}"
 MODE="${1:-host}"
+APP_PORT="${APP_PORT:-7000}"
+POSTGRES_PORTS="${POSTGRES_PORTS:-127.0.0.1:7001:5432}"
+DATABASE_URL="${DATABASE_URL:-postgresql://finance:finance@127.0.0.1:7001/finance_shot}"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Instale o Docker Desktop e deixe-o em execução." >&2

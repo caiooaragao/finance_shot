@@ -11,7 +11,7 @@ docker compose up -d
 npm run dev
 ```
 
-`DATABASE_URL` e o proxy ficam em `.env.local` (veja `example.env`). Em dev (`./run.sh`), o Postgres publica a porta **5434**. Em deploy (`./deploy.sh`), banco e app usam a porta **7000** (`POSTGRES_PORTS=127.0.0.1:7000:5432`, `APP_PORT=7000`). Sem `WORKFLOW_AUTORUN=true`, nada é raspado até `POST /api/workflow/tick`.
+`DATABASE_URL` e o proxy ficam em `.env.local` (veja `example.env`). Em dev (`./run.sh`), o Postgres publica a porta **5434**. Em deploy (`./deploy.sh`), Postgres no host **7001** e app na **7000** (`POSTGRES_PORTS=127.0.0.1:7001:5432`, `APP_PORT=7000`). Sem `WORKFLOW_AUTORUN=true`, nada é raspado até `POST /api/workflow/tick`.
 
 Para copiar os dados do Postgres local para um Postgres na nuvem, use `sync-to-cloud.sh` na raiz de `finance_shot` (Git Bash ou WSL). Na primeira vez em banco vazio, passe `--apply-schema`. Use a connection string **direta** do provedor (ex.: Supabase porta 5432, não o pooler 6543).
 
