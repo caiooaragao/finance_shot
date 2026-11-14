@@ -2,19 +2,13 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-First, run the development server:
+`npm run dev` sobe a interface, as Server Actions e as API Routes no mesmo processo. Em produção, use `npm run build` e `npm run start`.
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abra [http://localhost:3000](http://localhost:3000). A API fica em `/api` (`/api/health`, `/api/trades`, `/api/workflow`, `/api/scrape`). Os caminhos anteriores (`/health`, `/trades`, `/workflow`, `/scrape`) continuam no mesmo servidor.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

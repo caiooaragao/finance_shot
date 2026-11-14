@@ -7,26 +7,31 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "backend": "tsx backend/server.ts",
-    "test": "tsx --test backend/services/senate/parse-ptr.test.ts backend/services/senate/job.test.ts backend/services/trades.test.ts backend/workflow/runner.test.ts"
+    "postinstall": "prisma generate",
+    "prisma:generate": "prisma generate",
+    "test": "tsx --test server/services/senate/parse-ptr.test.ts server/services/senate/job.test.ts server/services/house/parse-ptr.test.ts server/services/trades.test.ts server/workflow/runner.test.ts",
+    "scrape": "tsx server/scripts/scrape.ts",
+    "scrape:house": "tsx server/scripts/scrape.ts --house",
+    "scrape:incremental": "tsx server/scripts/scrape.ts --incremental"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.0",
     "cheerio": "^1.2.0",
-    "hono": "^4.13.18",
+    "fflate": "^0.8.3",
     "next": "16.4.6",
-    "pg": "^8.23.1",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "undici": "^8.12.4"
+    "undici": "^8.12.4",
+    "unpdf": "^1.9.1"
   },
   "devDependencies": {
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "^20",
-    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
+    "prisma": "^6.19.0",
     "tailwindcss": "4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^5"

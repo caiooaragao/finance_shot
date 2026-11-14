@@ -1,0 +1,102 @@
+import { maxAttempts } from "../lib/env";
+import type { StepDraft } from "./types";
+
+export const PLAN = {
+  id: "senate-efd",
+  title: "Scrape de PTRs do Senado",
+  status: "active",
+  version: 1,
+  parentPlanId: null as string | null,
+};
+
+export const PLAN_ID = PLAN.id;
+
+export function senateSteps(): StepDraft[] {
+  const attempts = maxAttempts();
+  return [
+    {
+      id: "schema",
+      position: 10,
+      title: "Schema Postgres",
+      description: "Cria as tabelas dos trades do Senado e do estado do scrape.",
+      objective: "As tabelas do Senado existem no banco.",
+      acceptanceCriteria: ["information_schema lista senate_filings, senate_trades, house_filings, house_trades e scrape_state"],
+      dependencies: [],
+      complexity: "low",
+      tools: ["prisma"],
+      risks: ["DATABASE_URL ausente"],
+      handler: "schema",
+      maxAttempts: attempts,
+    },
+    {
+      id: "senate-client",
+      position: 20,
+      title: "Cliente eFD",
+      description: "Abre sessão no eFD, aceita o acordo e lê uma página de PTRs.",
+      objective: "Uma página JSON do índice de relatórios, ou 403 classificado.",
+      acceptanceCriteria: ["resposta JSON com data[]", "403 vira BLOCKED sem apagar o banco"],
+      dependencies: [],
+      complexity: "high",
+      tools: ["fetchViaProxy"],
+      risks: ["Akamai 403 fora de IP residencial nos EUA"],
+      handler: "senate-client",
+      maxAttempts: attempts,
+    },
+    {
+      id: "parse-normalize",
+      position: 30,
+      title: "Parser de PTR",
+      description: "Lê a tabela de transações e normaliza buy, sell e exchange.",
+      objective: "O teste do fixture termina com código 0.",
+      acceptanceCriteria: ["node:test do parser sai 0"],
+      dependencies: [],
+      complexity: "medium",
+      tools: ["cheerio", "node:test"],
+      risks: ["o HTML do relatório mudar de colunas"],
+      handler: "parse-normalize",
+      maxAttempts: attempts,
+    },
+    {
+      id: "serve-api",
+      position: 40,
+      title: "API CongressInvests",
+      description: "Serve /trades no envelope da CongressInvests, paginado no SQL.",
+      objective: "GET /trades/recent devolve o envelope e os campos do trade.",
+      acceptanceCriteria: ["chaves do envelope presentes", "chamber=House só devolve trades da Câmara"],
+      dependencies: ["schema"],
+      complexity: "medium",
+      tools: ["next", "prisma"],
+      risks: [],
+      handler: "serve-api",
+      maxAttempts: attempts,
+    },
+    {
+      id: "backfill-3y",
+      position: 50,
+      title: "Backfill histórico",
+      description: "Baixa PTRs eletrônicos de todos os anos do eFD (desde 2012) e ignora os que já estão no banco.",
+      objective: "backfill_completed_at preenchido e a segunda passagem insere zero filings.",
+      acceptanceCriteria: ["filings novos batem com a diferença da contagem", "segunda passagem added = 0"],
+      dependencies: ["schema", "senate-client", "parse-normalize"],
+      complexity: "high",
+      tools: ["fetchViaProxy", "prisma"],
+      risks: ["corrida longa", "403 no meio do caminho"],
+      handler: "backfill-3y",
+      maxAttempts: attempts,
+    },
+    {
+      id: "incremental-6h",
+      position: 60,
+      title: "Atualização de 6 horas",
+      description: "Agenda o job e insere só relatórios que ainda não estão no banco.",
+      objective: "A segunda corrida imediata insere zero e o agendamento fica armado.",
+      acceptanceCriteria: ["secondRunAdded = 0", "intervalo de 6 horas armado"],
+      dependencies: ["backfill-3y", "serve-api"],
+      complexity: "medium",
+      tools: ["prisma"],
+      risks: ["um protocolo novo entre as duas corridas"],
+      handler: "incremental-6h",
+      maxAttempts: attempts,
+    },
+  ];
+}

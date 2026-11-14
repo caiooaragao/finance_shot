@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model SenateFiling {
+  id         String        @id @db.Uuid
+  memberName String        @map("member_name")
+  disclosed  DateTime      @db.Date
+  link       String
+  scrapedAt  DateTime      @default(now()) @map("scraped_at")
+  trades     SenateTrade[]
+
+  @@map("senate_filings")
+}
+
+model SenateTrade {
+  id         String       @id
+  filingId   String       @map("filing_id") @db.Uuid
+  member     String
+  chamber    String       @default("Senate")
+  ticker     String       @default("")
+  tradeType  String       @map("trade_type")
+  amount     String
+  txDate     DateTime?    @map("tx_date") @db.Date
+  disclosed  DateTime     @db.Date
+  asset      String
+  link       String
+  insertedAt DateTime     @default(now()) @map("inserted_at")
+  filing     SenateFiling @relation(fields: [filingId], references: [id])
+
+  @@index([disclosed(sort: Desc)], map: "senate_trades_disclosed_idx")
+  @@index([ticker], map: "senate_trades_ticker_idx")
+  @@index([txDate(sort: Desc)], map: "senate_trades_tx_date_idx")
+  @@map("senate_trades")
+}
+
+model HouseFiling {
+  id         String       @id
+  memberName String       @map("member_name")
+  disclosed  DateTime     @db.Date
+  link       String
+  scrapedAt  DateTime     @default(now()) @map("scraped_at")
+  trades     HouseTrade[]
+
+  @@map("house_filings")
+}
+
+model HouseTrade {
+  id         String      @id
+  filingId   String      @map("filing_id")
+  member     String
+  chamber    String      @default("House")
+  ticker     String      @default("")
+  tradeType  String      @map("trade_type")
+  amount     String
+  txDate     DateTime?   @map("tx_date") @db.Date
+  disclosed  DateTime    @db.Date
+  asset      String
+  link       String
+  insertedAt DateTime    @default(now()) @map("inserted_at")
+  filing     HouseFiling @relation(fields: [filingId], references: [id])
+
+  @@index([disclosed(sort: Desc)], map: "house_trades_disclosed_idx")
+  @@index([ticker], map: "house_trades_ticker_idx")
+  @@index([txDate(sort: Desc)], map: "house_trades_tx_date_idx")
+  @@map("house_trades")
+}
+
+model ScrapeState {
+  id                  Int       @id @default(1)
+  backfillCompletedAt DateTime? @map("backfill_completed_at")
+  lastSuccessAt       DateTime? @map("last_success_at")
+  lastError           String?   @map("last_error")
+  lastStartedAt       DateTime? @map("last_started_at")
+
+  @@map("scrape_state")
+}

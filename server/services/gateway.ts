@@ -1,0 +1,161 @@
+import { bootstrap } from "../bootstrap";
+import { databaseUrl } from "../db/prisma";
+import { runIncremental } from "./senate/run";
+import { readScrapeState } from "./senate/store";
+import { loadHealth, parseTradeQuery, queryTrades } from "./trades";
+import { handlers } from "../workflow/handlers";
+import { getWorkflowRepository } from "../workflow/repository";
+import { dependenciesDone, tick } from "../workflow/runner";
+import { PLAN_ID } from "../workflow/seed";
+
+export type ServiceSuccess<T> = { ok: true; status: number; data: T };
+export type ServiceFailure = { ok: false; status: number; error: string };
+export type ServiceResult<T> = ServiceSuccess<T> | ServiceFailure;
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : "banco indisponível";
+}
+
+function ok<T>(data: T, status = 200): ServiceSuccess<T> {
+  return { ok: true, status, data };
+}
+
+function fail(status: number, error: string): ServiceFailure {
+  return { ok: false, status, error };
+}
+
+const emptyHealth = {
+  data_current: false,
+  cache_loading: false,
+  last_updated: null,
+  data_lag_minutes: null,
+  next_refresh_in_minutes: 360,
+  filings: 0,
+  trades: 0,
+  senate_filings: 0,
+  senate_trades: 0,
+  house_filings: 0,
+  house_trades: 0,
+  backfill_completed: false,
+};
+
+export async function getHealth() {
+  await bootstrap();
+  if (!databaseUrl()) {
+    return { ...emptyHealth, last_error: "DATABASE_URL ausente" };
+  }
+  try {
+    return await loadHealth();
+  } catch (error) {
+    return { ...emptyHealth, last_error: message(error) };
+  }
+}
+
+export async function listTrades(search: URLSearchParams, ticker: string | null = null) {
+  await bootstrap();
+  try {
+    return ok(await queryTrades(parseTradeQuery(search, ticker)));
+  } catch (error) {
+    return fail(503, message(error));
+  }
+}
+
+export async function readWorkflow() {
+  await bootstrap();
+  try {
+    const repo = getWorkflowRepository();
+    const steps = await repo.listSteps(PLAN_ID);
+    const feedback = await repo.latestFeedback(PLAN_ID);
+    const plan = await repo.getPlan(PLAN_ID);
+    const counts = { pending: 0, running: 0, completed: 0, blocked: 0, failed: 0, cancelled: 0 };
+    for (const step of steps) counts[step.status] += 1;
+    const current = steps.find((step) => step.status === "running")
+      ?? steps.find((step) => step.status === "pending" && dependenciesDone(steps, step))
+      ?? null;
+    return ok({
+      plan: {
+        id: plan.id,
+        title: plan.title,
+        status: plan.status,
+        version: plan.version,
+        parent_plan_id: plan.parentPlanId,
+      },
+      counts,
+      current: current?.id ?? null,
+      steps: steps.map((step) => ({ ...step, feedback: feedback.get(step.id) ?? null })),
+    });
+  } catch (error) {
+    return fail(503, message(error));
+  }
+}
+
+export async function readWorkflowStep(stepId: string) {
+  const workflow = await readWorkflow();
+  if (!workflow.ok) return workflow;
+  const step = workflow.data.steps.find((item) => item.id === stepId);
+  if (!step) return fail(404, "etapa inexistente");
+  return ok(step);
+}
+
+export async function advanceWorkflow() {
+  await bootstrap();
+  try {
+    return ok(await tick(getWorkflowRepository(), handlers, PLAN_ID));
+  } catch (error) {
+    return fail(503, message(error));
+  }
+}
+
+export async function retryWorkflow(stepId: string) {
+  await bootstrap();
+  const id = stepId.trim();
+  if (!id) return fail(400, "stepId obrigatório");
+  try {
+    const reopened = await getWorkflowRepository().reopen(PLAN_ID, id);
+    if (!reopened) return fail(409, "etapa não está blocked ou failed");
+    return ok({ stepId: id, status: "pending" as const });
+  } catch (error) {
+    return fail(503, message(error));
+  }
+}
+
+export async function cancelWorkflowStep(stepId: string) {
+  await bootstrap();
+  const id = stepId.trim();
+  if (!id) return fail(400, "stepId obrigatório");
+  try {
+    const repo = getWorkflowRepository();
+    const steps = await repo.listSteps(PLAN_ID);
+    const step = steps.find((item) => item.id === id);
+    if (!step) return fail(404, "etapa inexistente");
+    if (step.status === "cancelled") return ok({ stepId: id, status: "cancelled" as const });
+    if (step.status === "completed" || step.status === "running") {
+      return fail(409, "etapa não pode ser cancelada");
+    }
+    await repo.replan(PLAN_ID, {
+      reason: "cancelamento solicitado",
+      cancel: [id],
+      add: [],
+      retarget: [],
+    });
+    return ok({ stepId: id, status: "cancelled" as const });
+  } catch (error) {
+    return fail(503, message(error));
+  }
+}
+
+export async function runScrape() {
+  await bootstrap();
+  try {
+    const repo = getWorkflowRepository();
+    const state = await readScrapeState();
+    if (!state.backfillCompletedAt) {
+      const result = await tick(repo, handlers, PLAN_ID);
+      return ok({ mode: "workflow" as const, ...result });
+    }
+    const progress = await runIncremental();
+    return ok({ mode: "incremental" as const, ...progress });
+  } catch (error) {
+    return fail(503, message(error));
+  }
+}
