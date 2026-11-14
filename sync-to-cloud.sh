@@ -46,8 +46,9 @@ if [[ "$DRY_RUN" -eq 0 && -z "$CLOUD_URL" ]]; then
   exit 1
 fi
 
-if [[ -n "$CLOUD_URL" ]] && [[ "$CLOUD_URL" =~ localhost|127\.0\.0\.1|:5434|:7000/ ]]; then
-  echo "CLOUD_DATABASE_URL parece apontar para o banco local. Use a URL do Postgres na nuvem." >&2
+if [[ -n "$CLOUD_URL" ]] && [[ "$CLOUD_URL" =~ (localhost|127\.0\.0\.1):(5432|5434|7000|7001)(/|$) ]]; then
+  echo "CLOUD_DATABASE_URL parece apontar para o Postgres local (portas dev/deploy)." >&2
+  echo "Para VPS via túnel SSH, use outra porta local (ex.: 15432): ssh -L 15432:127.0.0.1:7001 …" >&2
   exit 1
 fi
 
