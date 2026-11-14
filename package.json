@@ -4,8 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:deploy": "next dev -p 7000",
     "build": "next build",
     "start": "next start",
+    "start:deploy": "next start -p 7000",
     "lint": "eslint",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",

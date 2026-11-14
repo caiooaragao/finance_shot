@@ -11,7 +11,13 @@ docker compose up -d
 npm run dev
 ```
 
-`DATABASE_URL` e o proxy ficam em `.env.local` (veja `example.env`). O Postgres deste compose publica a porta **5434**, porque a 5432 costuma já estar em uso. Sem `WORKFLOW_AUTORUN=true`, nada é raspado até `POST /api/workflow/tick`.
+`DATABASE_URL` e o proxy ficam em `.env.local` (veja `example.env`). Em dev (`./run.sh`), o Postgres publica a porta **5434**. Em deploy (`./deploy.sh`), banco e app usam a porta **7000** (`POSTGRES_PORTS=127.0.0.1:7000:5432`, `APP_PORT=7000`). Sem `WORKFLOW_AUTORUN=true`, nada é raspado até `POST /api/workflow/tick`.
+
+Para copiar os dados do Postgres local para um Postgres na nuvem, use `sync-to-cloud.sh` na raiz de `finance_shot` (Git Bash ou WSL). Na primeira vez em banco vazio, passe `--apply-schema`. Use a connection string **direta** do provedor (ex.: Supabase porta 5432, não o pooler 6543).
+
+```bash
+CLOUD_DATABASE_URL='postgresql://…' ./sync-to-cloud.sh --apply-schema -y
+```
 
 Se o eFD responder 403, a etapa `senate-client` fica `blocked` e o backfill não começa. Preencha `OUTBOUND_PROXY_URL` com um proxy residencial nos EUA, reinicie o Next.js e chame `PUT /api/workflow/steps/senate-client` ou `POST /api/workflow/retry` com `{ "stepId": "senate-client" }`.
 

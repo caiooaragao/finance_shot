@@ -10,6 +10,10 @@ npm run dev
 
 Abra [http://localhost:3000](http://localhost:3000). A API fica em `/api` (`/api/health`, `/api/trades`, `/api/workflow`, `/api/scrape`). Os caminhos anteriores (`/health`, `/trades`, `/workflow`, `/scrape`) continuam no mesmo servidor.
 
+**Dev local:** `./run.sh` (Postgres **5434**, app **3000**).
+
+**Deploy local:** `./deploy.sh` — Postgres em **127.0.0.1:7000** e app em **http://localhost:7000**. Se a porta 7000 conflitar, use `./deploy.sh docker`.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

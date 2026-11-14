@@ -1,0 +1,20 @@
+# Usado por ./deploy.sh docker — app na porta APP_PORT (padrão 7000).
+services:
+  postgres:
+    ports:
+      - "${POSTGRES_PORTS:-127.0.0.1:7000:5432}"
+
+  app:
+    profiles: ["app"]
+    build:
+      context: .
+      dockerfile: Dockerfile.deploy
+    ports:
+      - "${APP_PORT:-7000}:${APP_PORT:-7000}"
+    environment:
+      NODE_ENV: production
+      PORT: "${APP_PORT:-7000}"
+      DATABASE_URL: postgresql://finance:finance@postgres:5432/finance_shot
+    depends_on:
+      postgres:
+        condition: service_healthy

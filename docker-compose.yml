@@ -6,9 +6,15 @@ services:
       POSTGRES_PASSWORD: finance
       POSTGRES_DB: finance_shot
     ports:
-      - "5434:5432"
+      - "${POSTGRES_PORTS:-5434:5432}"
     volumes:
       - finance_shot_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U finance -d finance_shot"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
 
 volumes:
   finance_shot_pg:

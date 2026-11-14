@@ -21,6 +21,8 @@
 /build
 
 # misc
+.sync/
+.env.deploy.local
 .DS_Store
 *.pem
 
