@@ -30,6 +30,16 @@ compose() {
 
 export POSTGRES_PORTS
 
+COMPOSE_DEPLOY=( -f docker-compose.yml -f docker-compose.deploy.yml --profile app )
+
+teardown_previous_stack() {
+  echo "Derrubando containers anteriores deste deploy…"
+  compose "${COMPOSE_DEPLOY[@]}" down --remove-orphans 2>/dev/null || true
+  compose down --remove-orphans 2>/dev/null || true
+}
+
+teardown_previous_stack
+
 echo "Subindo Postgres (${POSTGRES_PORTS})…"
 if compose up -d --wait postgres 2>/dev/null; then
   :
@@ -51,7 +61,7 @@ fi
 
 if [[ "$MODE" == "docker" ]]; then
   echo "Build e subida do app no Docker (porta ${APP_PORT})…"
-  APP_PORT="$APP_PORT" compose -f docker-compose.yml -f docker-compose.deploy.yml --profile app up -d --build
+  APP_PORT="$APP_PORT" compose "${COMPOSE_DEPLOY[@]}" up -d --build
   echo
   echo "Banco (host):  ${POSTGRES_PORTS} → postgres:5432 no container"
   echo "Front (host):  http://localhost:${APP_PORT}"
