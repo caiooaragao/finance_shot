@@ -1,20 +1,17 @@
-import {
-  fetch as undiciFetch,
-  ProxyAgent,
-  type Dispatcher,
-  type RequestInit as UndiciRequestInit,
-} from "undici";
-
 import { processSlot } from "./singleton";
 import { getOutboundProxyUrl } from "./proxy";
 
-const cachedDispatcher = processSlot<Dispatcher | undefined>("finance-shot.proxy", undefined);
+type UndiciDispatcher = import("undici").Dispatcher;
+type UndiciRequestInit = import("undici").RequestInit;
 
-function getProxyDispatcher(): Dispatcher | undefined {
+const cachedDispatcher = processSlot<UndiciDispatcher | undefined>("finance-shot.proxy", undefined);
+
+async function getProxyDispatcher(): Promise<UndiciDispatcher | undefined> {
   const proxyUrl = getOutboundProxyUrl();
   if (!proxyUrl) return undefined;
 
   if (!cachedDispatcher.value) {
+    const { ProxyAgent } = await import("undici");
     cachedDispatcher.value = new ProxyAgent(proxyUrl);
   }
   return cachedDispatcher.value;
@@ -28,11 +25,12 @@ export async function fetchViaProxy(
   input: string | URL,
   init?: RequestInit,
 ): Promise<Response> {
-  const dispatcher = getProxyDispatcher();
+  const dispatcher = await getProxyDispatcher();
   if (!dispatcher) {
     return fetch(input, init);
   }
 
+  const { fetch: undiciFetch } = await import("undici");
   const undiciInit: UndiciRequestInit = {
     ...(init as UndiciRequestInit),
     dispatcher,
