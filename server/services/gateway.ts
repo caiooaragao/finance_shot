@@ -2,7 +2,7 @@ import { bootstrap } from "../bootstrap";
 import { databaseUrl } from "../db/prisma";
 import { runIncremental } from "./senate/run";
 import { readScrapeState } from "./senate/store";
-import { loadHealth, parseTradeQuery, queryTrades } from "./trades";
+import { loadHealth, parseMemberSearch, parseTradeQuery, queryMembers, queryTrades } from "./trades";
 import { handlers } from "../workflow/handlers";
 import { getWorkflowRepository } from "../workflow/repository";
 import { dependenciesDone, tick } from "../workflow/runner";
@@ -55,6 +55,49 @@ export async function listTrades(search: URLSearchParams, ticker: string | null 
   await bootstrap();
   try {
     return ok(await queryTrades(parseTradeQuery(search, ticker)));
+  } catch (error) {
+    return fail(503, message(error));
+  }
+}
+
+export async function listMembers() {
+  await bootstrap();
+  try {
+    return ok(await queryMembers(null));
+  } catch (error) {
+    return fail(503, message(error));
+  }
+}
+
+export async function searchMembers(body: { q?: unknown; name?: unknown }) {
+  await bootstrap();
+  const nameQuery = parseMemberSearch(body);
+  if (!nameQuery) return fail(400, "q obrigatório");
+  try {
+    return ok(await queryMembers(nameQuery));
+  } catch (error) {
+    return fail(503, message(error));
+  }
+}
+
+function jsonInt(value: unknown, fallback: number, min: number, max: number): number {
+  if (value === undefined || value === null || value === "") return fallback;
+  const raw = typeof value === "number" ? value : typeof value === "string" ? Number(value) : Number.NaN;
+  if (!Number.isFinite(raw)) return fallback;
+  return Math.min(max, Math.max(min, Math.floor(raw)));
+}
+
+export async function listMemberTrades(body: { name?: unknown; limit?: unknown; offset?: unknown }) {
+  await bootstrap();
+  const member = typeof body.name === "string" ? body.name.trim() : "";
+  if (!member) return fail(400, "nome obrigatório");
+  try {
+    const tradeQuery = parseTradeQuery(new URLSearchParams());
+    tradeQuery.member = member;
+    tradeQuery.memberExact = true;
+    tradeQuery.limit = jsonInt(body.limit, tradeQuery.limit, 1, 500);
+    tradeQuery.offset = jsonInt(body.offset, tradeQuery.offset, 0, Number.MAX_SAFE_INTEGER);
+    return ok({ name: member, ...(await queryTrades(tradeQuery)) });
   } catch (error) {
     return fail(503, message(error));
   }

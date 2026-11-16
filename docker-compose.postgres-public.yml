@@ -1,0 +1,6 @@
+# Postgres acessível na internet (0.0.0.0:7001). Use com POSTGRES_PUBLIC=1 no deploy.
+# Troque POSTGRES_PASSWORD em docker-compose.yml antes de expor.
+services:
+  postgres:
+    ports:
+      - "0.0.0.0:${POSTGRES_PUBLIC_PORT:-7001}:5432"

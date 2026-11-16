@@ -80,6 +80,11 @@ export function buildEnvelope(input: {
   };
 }
 
+export type PublicMember = {
+  name: string;
+  chambers: string[];
+};
+
 export type TradeQuery = {
   limit: number;
   offset: number;
@@ -88,6 +93,7 @@ export type TradeQuery = {
   ticker: string | null;
   tickerExact: boolean;
   member: string | null;
+  memberExact: boolean;
   asset: string | null;
   tradeType: string | null;
   amount: string | null;
@@ -125,6 +131,7 @@ export function parseTradeQuery(search: URLSearchParams, ticker: string | null =
     ticker: pathTicker ?? blank(search.get("ticker")),
     tickerExact: Boolean(pathTicker),
     member: blank(search.get("member")),
+    memberExact: false,
     asset: blank(search.get("asset") ?? search.get("company")),
     tradeType: blank(search.get("trade_type") ?? search.get("type")),
     amount: blank(search.get("amount")),
@@ -139,13 +146,16 @@ export function parseTradeQuery(search: URLSearchParams, ticker: string | null =
   };
 }
 
-function tradeFilterSql(tickerExact: boolean): string {
+function tradeFilterSql(tickerExact: boolean, memberExact: boolean): string {
   const tickerClause = tickerExact
     ? "($1::text IS NULL OR ticker = $1)"
     : "($1::text IS NULL OR ticker ILIKE '%' || $1 || '%')";
+  const memberClause = memberExact
+    ? "($3::text IS NULL OR lower(member) = lower($3))"
+    : "($3::text IS NULL OR member ILIKE '%' || $3 || '%')";
   return `WHERE ${tickerClause}
     AND ($2::int IS NULL OR disclosed >= CURRENT_DATE - $2::int)
-    AND ($3::text IS NULL OR member ILIKE '%' || $3 || '%')
+    AND ${memberClause}
     AND ($4::text IS NULL OR asset ILIKE '%' || $4 || '%')
     AND ($5::text IS NULL OR trade_type ILIKE '%' || $5 || '%')
     AND ($6::text IS NULL OR amount ILIKE '%' || $6 || '%')
@@ -202,7 +212,7 @@ export async function queryTrades(tradeQuery: TradeQuery) {
     return buildEnvelope({ total: 0, offset: tradeQuery.offset, limit: tradeQuery.limit, trades: [], freshness });
   }
 
-  const where = tradeFilterSql(tradeQuery.tickerExact);
+  const where = tradeFilterSql(tradeQuery.tickerExact, tradeQuery.memberExact);
   const params = tradeFilterParams(tradeQuery);
   const union = tables
     .map(
@@ -230,6 +240,32 @@ export async function queryTrades(tradeQuery: TradeQuery) {
     trades: rows,
     freshness,
   });
+}
+
+export function parseMemberSearch(body: { q?: unknown; name?: unknown }): string | null {
+  const raw = body.q !== undefined ? body.q : body.name;
+  return typeof raw === "string" ? blank(raw) : null;
+}
+
+function likeContains(value: string): string {
+  return `%${value.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+}
+
+export async function queryMembers(nameQuery: string | null) {
+  const rows = await query<PublicMember>(
+    `SELECT name, array_agg(DISTINCT chamber ORDER BY chamber) AS chambers
+     FROM (
+       SELECT btrim(member) AS name, chamber FROM senate_trades
+       UNION
+       SELECT btrim(member) AS name, chamber FROM house_trades
+     ) AS people
+     WHERE name <> ''
+       AND ($1::text IS NULL OR name ILIKE $1 ESCAPE '\\')
+     GROUP BY name
+     ORDER BY name ASC`,
+    [nameQuery === null ? null : likeContains(nameQuery)],
+  );
+  return { total: rows.length, names: rows };
 }
 
 export async function loadHealth() {

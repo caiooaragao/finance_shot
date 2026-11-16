@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildEnvelope, buildFreshness, ENVELOPE_KEYS, parseTradeQuery, TRADE_KEYS } from "./trades";
+import {
+  buildEnvelope,
+  buildFreshness,
+  ENVELOPE_KEYS,
+  parseMemberSearch,
+  parseTradeQuery,
+  TRADE_KEYS,
+} from "./trades";
 
 test("envelope de trades segue a CongressInvests", () => {
   const freshness = buildFreshness(
@@ -77,4 +84,12 @@ test("parseTradeQuery usa ticker do path com match exato", () => {
   const query = parseTradeQuery(new URLSearchParams({ ticker: "AAPL" }), "nvda");
   assert.equal(query.ticker, "NVDA");
   assert.equal(query.tickerExact, true);
+  assert.equal(query.memberExact, false);
+});
+
+test("parseMemberSearch lê q ou name do json e ignora vazio", () => {
+  assert.equal(parseMemberSearch({ q: "  Pelosi " }), "Pelosi");
+  assert.equal(parseMemberSearch({ name: "Tuberville" }), "Tuberville");
+  assert.equal(parseMemberSearch({ q: "   " }), null);
+  assert.equal(parseMemberSearch({}), null);
 });

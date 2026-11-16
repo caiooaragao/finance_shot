@@ -31,6 +31,9 @@ Os endpoints canônicos ficam em `app/api/`. Os caminhos antigos (`/health`, `/t
 - `GET /api/trades/recent`
 - `GET /api/trades/:ticker`
 - `GET /api/trades`
+- `POST /api/members` com `{}` — nomes distintos de quem operou na House e no Senate
+- `POST /api/members/search` com `{ "q": "Pelosi" }` — filtra esses nomes por trecho (`name` também vale)
+- `POST /api/members/trades` com `{ "name": "Abigail Spanberger" }` — trades do nome selecionado, no mesmo envelope de `/api/trades` (`limit` e `offset` vão no JSON)
 - `GET /api/workflow`
 - `GET /api/workflow/steps/:stepId`
 - `POST /api/workflow/tick`
