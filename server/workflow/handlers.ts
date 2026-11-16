@@ -12,7 +12,9 @@ import type { StepHandler } from "./runner";
 
 function unavailable(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
-  return /DATABASE_URL ausente|ECONNREFUSED|ENOTFOUND|authentication failed|does not exist/i.test(error.message);
+  return /DATABASE_URL ausente|ECONNREFUSED|ENOTFOUND|authentication failed|does not exist|57P01|administrator command|Can't reach database server|Server has closed the connection/i.test(
+    error.message,
+  );
 }
 
 export const handlers: Record<string, StepHandler> = {

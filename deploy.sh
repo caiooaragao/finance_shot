@@ -119,9 +119,12 @@ cmd_logs() {
 }
 
 teardown_previous_stack() {
-  echo "Derrubando containers anteriores deste deploy…"
-  compose "${COMPOSE_DEPLOY[@]}" down --remove-orphans 2>/dev/null || true
-  compose down --remove-orphans 2>/dev/null || true
+  # Não derruba o Postgres. `compose down` manda SIGTERM e o banco responde
+  # 57P01 ("terminating connection due to administrator command") para quem
+  # ainda está consultando. O volume e o container ficam; só o app sai.
+  echo "Removendo container antigo do app (o Postgres continua no ar)…"
+  compose "${COMPOSE_DEPLOY[@]}" stop app >/dev/null 2>&1 || true
+  compose "${COMPOSE_DEPLOY[@]}" rm -f app >/dev/null 2>&1 || true
 }
 
 start_postgres() {

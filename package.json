@@ -11,7 +11,7 @@
     "lint": "eslint",
     "postinstall": "prisma generate",
     "prisma:generate": "prisma generate",
-    "test": "tsx --test server/services/senate/parse-ptr.test.ts server/services/senate/job.test.ts server/services/house/parse-ptr.test.ts server/services/trades.test.ts server/workflow/runner.test.ts",
+    "test": "tsx --test server/db/prisma.test.ts server/services/senate/parse-ptr.test.ts server/services/senate/job.test.ts server/services/house/parse-ptr.test.ts server/services/trades.test.ts server/workflow/runner.test.ts",
     "scrape": "tsx server/scripts/scrape.ts",
     "scrape:house": "tsx server/scripts/scrape.ts --house",
     "scrape:incremental": "tsx server/scripts/scrape.ts --incremental"
