@@ -12,7 +12,7 @@ Abra [http://localhost:3000](http://localhost:3000). A API fica em `/api` (`/api
 
 **Dev local:** `./run.sh` (Postgres **5434**, app **3000**).
 
-**Deploy local:** `./deploy.sh` — Postgres em **127.0.0.1:7001** e app em **http://localhost:7000**. Tudo no Docker: `./deploy.sh docker`.
+**Deploy local:** `./deploy.sh` — Postgres em **127.0.0.1:7001** e app em **http://localhost:7000** (Next em background; fecha o SSH sem derrubar). `./deploy.sh stop` · `./deploy.sh logs`. Tudo no Docker: `./deploy.sh docker`.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

@@ -21,6 +21,7 @@
 /build
 
 # misc
+.deploy/
 .sync/
 .env.deploy.local
 .DS_Store
