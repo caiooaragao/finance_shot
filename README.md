@@ -12,7 +12,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 npm run dev
 ```
 
-Abra [http://localhost:3000](http://localhost:3000). A API fica em `/api` (`/api/health`, `/api/trades`, `/api/workflow`, `/api/scrape`). Os caminhos anteriores (`/health`, `/trades`, `/workflow`, `/scrape`) continuam no mesmo servidor.
+Abra [http://localhost:3000](http://localhost:3000). A API fica em `/api` (`/api/health`, `/api/trades`, `/api/workflow`). O scrape roda por `WORKFLOW_AUTORUN`, job interno de 6 h ou `npm run scrape:*` no cron da VPS — não há `POST /api/scrape`.
 
 **Dev local:** `./run.sh` (Postgres **5434**, app **3000**).
 

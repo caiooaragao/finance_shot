@@ -2,12 +2,7 @@
 
 import { useActionState } from "react";
 
-import {
-  cancelWorkflowAction,
-  retryWorkflowStep,
-  scrapeWorkflow,
-  tickWorkflow,
-} from "@/app/actions/workflow";
+import { cancelWorkflowAction, retryWorkflowStep } from "@/app/actions/workflow";
 import type { ServiceResult } from "@/server/services/gateway";
 
 function outcome(state: ServiceResult<unknown> | null) {
@@ -20,36 +15,17 @@ function outcome(state: ServiceResult<unknown> | null) {
 }
 
 export function WorkflowControls() {
-  const [tickState, tickAction, tickPending] = useActionState(tickWorkflow, null);
-  const [scrapeState, scrapeAction, scrapePending] = useActionState(scrapeWorkflow, null);
   const [retryState, retryAction, retryPending] = useActionState(retryWorkflowStep, null);
   const [cancelState, cancelAction, cancelPending] = useActionState(cancelWorkflowAction, null);
 
   return (
     <section className="flex w-full flex-col gap-4">
       <h2 className="text-lg font-semibold text-black dark:text-zinc-50">Operações internas</h2>
-      <div className="flex flex-col gap-3 sm:flex-row">
-        <form action={tickAction}>
-          <button
-            className="flex h-11 cursor-pointer items-center justify-center rounded-full bg-foreground px-5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-[#ccc]"
-            type="submit"
-            disabled={tickPending}
-          >
-            {tickPending ? "Executando…" : "Executar etapa"}
-          </button>
-        </form>
-        <form action={scrapeAction}>
-          <button
-            className="flex h-11 cursor-pointer items-center justify-center rounded-full border border-solid border-black/[.08] px-5 text-sm font-medium transition-colors hover:bg-black/[.04] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[.145] dark:hover:bg-[#1a1a1a]"
-            type="submit"
-            disabled={scrapePending}
-          >
-            {scrapePending ? "Disparando…" : "Disparar scrape"}
-          </button>
-        </form>
-      </div>
-      <ActionNote label="Etapa" state={outcome(tickState)} />
-      <ActionNote label="Scrape" state={outcome(scrapeState)} />
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">
+        O scrape não é disparado por HTTP. Na VPS use cron com{" "}
+        <code className="text-xs">npm run scrape:incremental</code> ou{" "}
+        <code className="text-xs">WORKFLOW_AUTORUN=true</code> na subida do app.
+      </p>
       <form action={retryAction} className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
           className="h-11 rounded-full border border-black/[.08] bg-transparent px-4 text-sm dark:border-white/[.145]"

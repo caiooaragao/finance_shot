@@ -1,7 +1,5 @@
 import { bootstrap } from "../bootstrap";
 import { databaseUrl } from "../db/prisma";
-import { runIncremental } from "./senate/run";
-import { readScrapeState } from "./senate/store";
 import {
   loadHealth,
   parseLeaderDates,
@@ -17,9 +15,8 @@ import {
   queryOperationLeaders,
   queryTrades,
 } from "./trades";
-import { handlers } from "../workflow/handlers";
 import { getWorkflowRepository } from "../workflow/repository";
-import { dependenciesDone, tick } from "../workflow/runner";
+import { dependenciesDone } from "../workflow/runner";
 import { PLAN_ID } from "../workflow/seed";
 
 export type ServiceSuccess<T> = { ok: true; status: number; data: T };
@@ -234,15 +231,6 @@ export async function readWorkflowStep(stepId: string) {
   return ok(step);
 }
 
-export async function advanceWorkflow() {
-  await bootstrap();
-  try {
-    return ok(await tick(getWorkflowRepository(), handlers, PLAN_ID));
-  } catch (error) {
-    return fail(503, message(error));
-  }
-}
-
 export async function retryWorkflow(stepId: string) {
   await bootstrap();
   const id = stepId.trim();
@@ -276,22 +264,6 @@ export async function cancelWorkflowStep(stepId: string) {
       retarget: [],
     });
     return ok({ stepId: id, status: "cancelled" as const });
-  } catch (error) {
-    return fail(503, message(error));
-  }
-}
-
-export async function runScrape() {
-  await bootstrap();
-  try {
-    const repo = getWorkflowRepository();
-    const state = await readScrapeState();
-    if (!state.backfillCompletedAt) {
-      const result = await tick(repo, handlers, PLAN_ID);
-      return ok({ mode: "workflow" as const, ...result });
-    }
-    const progress = await runIncremental();
-    return ok({ mode: "incremental" as const, ...progress });
   } catch (error) {
     return fail(503, message(error));
   }

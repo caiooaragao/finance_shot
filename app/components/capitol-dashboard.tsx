@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { ActivityRanks } from "./activity-ranks";
 import { BiggestBuyer } from "./biggest-buyer";
 import { OperationsBoard } from "./operations-board";
+import { SystemTypewriter } from "./system-typewriter";
 
 type Trade = {
   member: string;
@@ -330,7 +331,9 @@ export function CapitolDashboard() {
         </form>
       </header>
 
-      <main className="flex flex-col gap-4 px-4 pt-4 pb-8">
+      <SystemTypewriter className="pt-3 pb-1" />
+
+      <main className="flex flex-col gap-4 px-4 pt-2 pb-8">
         <div className="grid w-full grid-cols-1 items-stretch gap-4 lg:grid-cols-12">
           <div className="min-w-0 lg:col-span-6">
             <OperationsBoard />

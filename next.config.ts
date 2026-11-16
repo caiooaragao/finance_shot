@@ -12,10 +12,8 @@ const nextConfig: NextConfig = {
       { source: "/trades/recent", destination: "/api/trades/recent" },
       { source: "/trades/:ticker", destination: "/api/trades/:ticker" },
       { source: "/trades", destination: "/api/trades" },
-      { source: "/workflow/tick", destination: "/api/workflow/tick" },
       { source: "/workflow/retry", destination: "/api/workflow/retry" },
       { source: "/workflow", destination: "/api/workflow" },
-      { source: "/scrape", destination: "/api/scrape" },
     ];
   },
   cacheComponents: true,
