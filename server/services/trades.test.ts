@@ -5,6 +5,8 @@ import {
   buildEnvelope,
   buildFreshness,
   ENVELOPE_KEYS,
+  parseBiggestBuyerPeriod,
+  parseCompanyMetric,
   parseLeaderDates,
   parseLeaderMetric,
   parseMemberSearch,
@@ -100,6 +102,15 @@ test("parseLeaderDates aceita o período e rejeita data inválida", () => {
   assert.equal(parseLeaderDates({ to: 2024 }), null);
 });
 
+test("parseCompanyMetric aceita contagem e valor de compra e venda", () => {
+  assert.equal(parseCompanyMetric("buy"), "buy");
+  assert.equal(parseCompanyMetric("sell"), "sell");
+  assert.equal(parseCompanyMetric("buy_value"), "buy_value");
+  assert.equal(parseCompanyMetric("sell_value"), "sell_value");
+  assert.equal(parseCompanyMetric("count"), null);
+  assert.equal(parseCompanyMetric(undefined), null);
+});
+
 test("parseLeaderMetric aceita as medidas do gráfico", () => {
   assert.equal(parseLeaderMetric(undefined), "count");
   assert.equal(parseLeaderMetric(""), "count");
@@ -107,6 +118,15 @@ test("parseLeaderMetric aceita as medidas do gráfico", () => {
   assert.equal(parseLeaderMetric("buy"), "buy");
   assert.equal(parseLeaderMetric("sell"), "sell");
   assert.equal(parseLeaderMetric("dinheiro"), null);
+});
+
+test("parseBiggestBuyerPeriod aceita semana, mês e ano", () => {
+  assert.equal(parseBiggestBuyerPeriod(undefined), "week");
+  assert.equal(parseBiggestBuyerPeriod(""), "week");
+  assert.equal(parseBiggestBuyerPeriod("week"), "week");
+  assert.equal(parseBiggestBuyerPeriod("month"), "month");
+  assert.equal(parseBiggestBuyerPeriod("year"), "year");
+  assert.equal(parseBiggestBuyerPeriod("dia"), null);
 });
 
 test("parseMemberSearch lê q ou name do json e ignora vazio", () => {

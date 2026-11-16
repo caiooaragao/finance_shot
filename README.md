@@ -1,5 +1,9 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## UI
+
+- [UI Motion](docs/UI-MOTION.md) — padrão de animação para troca de painéis no mesmo espaço (ex.: gráfico ↔ tabela).
+
 ## Getting Started
 
 `npm run dev` sobe a interface, as Server Actions e as API Routes no mesmo processo. Em produção, use `npm run build` e `npm run start`.

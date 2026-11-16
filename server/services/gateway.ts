@@ -8,6 +8,11 @@ import {
   parseLeaderMetric,
   parseMemberSearch,
   parseTradeQuery,
+  parseCompanyMetric,
+  parseBiggestBuyerPeriod,
+  queryBiggestBuyer,
+  queryCompanyDetail,
+  queryCompanyLeaders,
   queryMembers,
   queryOperationLeaders,
   queryTrades,
@@ -113,6 +118,61 @@ export async function listOperationLeaders(body: {
   if (!metric) return fail(400, "medida inválida");
   try {
     return ok(await queryOperationLeaders(range, metric));
+  } catch (error) {
+    return fail(503, message(error));
+  }
+}
+
+export async function listCompanyLeaders(body: {
+  from?: unknown;
+  to?: unknown;
+  tx_date_from?: unknown;
+  tx_date_to?: unknown;
+  date_from?: unknown;
+  date_to?: unknown;
+  metric?: unknown;
+}) {
+  await bootstrap();
+  const range = parseLeaderDates(body);
+  if (!range) return fail(400, "data inválida");
+  if (range.from && range.to && range.from > range.to) return fail(400, "data inicial depois da final");
+  const metric = parseCompanyMetric(body.metric);
+  if (!metric) return fail(400, "medida inválida");
+  try {
+    return ok(await queryCompanyLeaders(range, metric));
+  } catch (error) {
+    return fail(503, message(error));
+  }
+}
+
+export async function getBiggestBuyer(periodRaw: unknown) {
+  await bootstrap();
+  const period = parseBiggestBuyerPeriod(periodRaw);
+  if (!period) return fail(400, "período inválido");
+  try {
+    return ok({ period, buyer: await queryBiggestBuyer(period) });
+  } catch (error) {
+    return fail(503, message(error));
+  }
+}
+
+export async function readCompanyDetail(body: {
+  ticker?: unknown;
+  from?: unknown;
+  to?: unknown;
+  tx_date_from?: unknown;
+  tx_date_to?: unknown;
+  date_from?: unknown;
+  date_to?: unknown;
+}) {
+  await bootstrap();
+  const ticker = typeof body.ticker === "string" ? body.ticker.trim().toUpperCase() : "";
+  if (!ticker || ticker.length > 16) return fail(400, "ticker obrigatório");
+  const range = parseLeaderDates(body);
+  if (!range) return fail(400, "data inválida");
+  if (range.from && range.to && range.from > range.to) return fail(400, "data inicial depois da final");
+  try {
+    return ok(await queryCompanyDetail(ticker, range));
   } catch (error) {
     return fail(503, message(error));
   }

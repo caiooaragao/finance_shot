@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { PanelSwap, runPanelSwap } from "./panel-swap";
 
 type ChartMetric = "count" | "notional" | "buy" | "sell";
 
@@ -251,10 +252,23 @@ export function OperationsBoard() {
   }
 
   function choosePerson(name: string) {
-    setQuery(name);
-    setPerson(name);
-    setOpen(false);
-    setSuggestions([]);
+    runPanelSwap(() => {
+      setQuery(name);
+      setPerson(name);
+      setOpen(false);
+      setSuggestions([]);
+    });
+  }
+
+  function backToChart() {
+    runPanelSwap(() => {
+      setPerson(null);
+      setQuery("");
+      setTrades([]);
+      setTradeTotal(0);
+      setTradesError(null);
+      setChartHover(null);
+    });
   }
 
   function onQueryKey(event: KeyboardEvent<HTMLInputElement>) {
@@ -280,12 +294,100 @@ export function OperationsBoard() {
   const visible = suggestions.slice(0, 12);
 
   return (
-    <section className="order-0 flex flex-col gap-4 rounded-xl bg-panel p-3">
+    <section className="panel-swap-vt order-0 flex min-h-[28rem] flex-col gap-4 rounded-xl bg-panel p-3">
+      <PanelSwap
+        activeKey={person ? `detail:${person}` : "chart"}
+        className="flex min-h-0 flex-1 flex-col gap-4"
+      >
+      {person ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden rounded-lg bg-panel-low">
+          <div className="flex flex-wrap items-center gap-2 px-3 pt-3">
+            <button
+              type="button"
+              onClick={backToChart}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-canvas px-3 text-[13px] font-semibold text-ink transition-colors hover:bg-panel-high"
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true" className="h-4 w-4 text-line" fill="currentColor">
+                <path
+                  d="M11.5 5.5 7 10l4.5 4.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              Voltar ao gráfico
+            </button>
+            <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold">{person}</h3>
+            <span className="font-mono text-[10px] text-line">
+              {tradesLoading ? "Carregando…" : `${formatCount(tradeTotal)} operações`}
+            </span>
+          </div>
+          {tradesError ? <p className="px-3 text-[12px] text-danger">{tradesError}</p> : null}
+          <div className="min-h-0 flex-1 overflow-auto px-1 pb-2">
+            <table className="w-full min-w-[760px] text-left">
+              <thead className="sticky top-0 z-[1] bg-panel-low font-mono text-[10px] tracking-wider text-line uppercase">
+                <tr>
+                  <th className="px-3 py-2 font-bold">Operação</th>
+                  <th className="px-3 py-2 font-bold">Divulgação</th>
+                  <th className="px-3 py-2 text-center font-bold">Tipo</th>
+                  <th className="px-3 py-2 font-bold">Ticker</th>
+                  <th className="px-3 py-2 font-bold">Ativo</th>
+                  <th className="px-3 py-2 text-right font-bold">Valor</th>
+                  <th className="px-3 py-2 font-bold">Câmara</th>
+                  <th className="px-3 py-2 text-center font-bold">PTR</th>
+                </tr>
+              </thead>
+              <tbody>
+                {trades.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-3 py-6 text-center text-[13px] text-ink-dim">
+                      {tradesLoading ? "Listando todas as operações…" : "Nenhuma operação para essa pessoa."}
+                    </td>
+                  </tr>
+                ) : (
+                  trades.map((trade, index) => (
+                    <tr key={`${trade.link}-${trade.ticker}-${trade.tx_date}-${index}`} className="border-t border-canvas">
+                      <td className="px-3 py-2 font-mono text-[11px]">{formatDate(trade.tx_date)}</td>
+                      <td className="px-3 py-2 font-mono text-[11px] text-line">{formatDate(trade.disclosed)}</td>
+                      <td className="px-3 py-2 text-center">
+                        <TypeBadge type={trade.trade_type} />
+                      </td>
+                      <td className="px-3 py-2 font-mono text-[12px] font-bold">{trade.ticker ? `$${trade.ticker}` : "—"}</td>
+                      <td className="max-w-56 px-3 py-2 text-[13px] text-ink-dim">
+                        <span className="line-clamp-2">{trade.asset || "—"}</span>
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-[12px] whitespace-nowrap">{trade.amount || "—"}</td>
+                      <td className="px-3 py-2 font-mono text-[10px] tracking-wider text-line uppercase">{trade.chamber || "—"}</td>
+                      <td className="px-3 py-2 text-center">
+                        {trade.link ? (
+                          <a
+                            href={trade.link}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex rounded bg-canvas px-2 py-1 font-mono text-[10px] text-line transition-colors hover:bg-mint hover:text-[#00422b]"
+                          >
+                            PTR
+                          </a>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <>
       <div ref={boxRef} className="relative flex flex-col gap-2">
         <div className="flex flex-wrap items-end justify-between gap-2">
           <label className="flex min-w-0 flex-1 flex-col gap-1" htmlFor={`${listId}-input`}>
             <span className="font-mono text-[10px] font-bold tracking-wider text-line uppercase">
-              Uma pessoa · POST /api/members/search
+              Uma pessoa
             </span>
             <input
               id={`${listId}-input`}
@@ -297,8 +399,17 @@ export function OperationsBoard() {
               autoComplete="off"
               placeholder="Digite uma letra do nome"
               onChange={(event) => {
-                setQuery(event.target.value);
-                if (person && event.target.value.trim() !== person) setPerson(null);
+                const value = event.target.value;
+                setQuery(value);
+                if (person && value.trim() !== person) {
+                  runPanelSwap(() => {
+                    setPerson(null);
+                    setTrades([]);
+                    setTradeTotal(0);
+                    setTradesError(null);
+                    setChartHover(null);
+                  });
+                }
               }}
               onFocus={() => {
                 if (suggestions.length > 0 && query.trim() !== person) setOpen(true);
@@ -307,21 +418,6 @@ export function OperationsBoard() {
               className={INPUT}
             />
           </label>
-          {person ? (
-            <button
-              type="button"
-              onClick={() => {
-                setPerson(null);
-                setQuery("");
-                setTrades([]);
-                setTradeTotal(0);
-                setTradesError(null);
-              }}
-              className="h-8 rounded-lg bg-canvas px-3 text-[13px] text-ink-dim transition-colors hover:bg-panel-high hover:text-ink"
-            >
-              Limpar pessoa
-            </button>
-          ) : null}
         </div>
         {open ? (
           <ul
@@ -365,14 +461,15 @@ export function OperationsBoard() {
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative">
+          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="shrink-0 text-[14px] font-medium text-ink-dim">Pesquise por</span>
+            <div className="relative min-w-0">
               <select
                 id={`${listId}-metric`}
                 aria-label="Ranking"
                 value={metric}
                 onChange={(event) => setMetric(event.target.value as ChartMetric)}
-                className="h-9 cursor-pointer appearance-none bg-panel pr-6 text-[18px] font-semibold tracking-tight text-ink outline-none [&>option]:bg-panel [&>option]:text-ink [&>option:checked]:bg-panel-high [&>option:checked]:text-mint"
+                className="h-9 max-w-full cursor-pointer appearance-none bg-panel pr-6 text-[18px] font-semibold tracking-tight text-ink outline-none [&>option]:bg-panel [&>option]:text-ink [&>option:checked]:bg-panel-high [&>option:checked]:text-mint"
               >
                 <option value="count">Quem mais operou</option>
                 <option value="notional">Dinheiro movimentado</option>
@@ -388,9 +485,6 @@ export function OperationsBoard() {
                 <path d="M5.5 7.5 10 12l4.5-4.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </div>
-            <span className="rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-line">
-              POST /api/members/leaders
-            </span>
           </div>
           <p className="font-mono text-[10px] text-line">
             {leadersLoading ? "Lendo a base…" : `${metricSummary(total, shownMetric)} · ${period}`}
@@ -514,77 +608,12 @@ export function OperationsBoard() {
         </ul>
       </div>
 
-      {person ? (
-        <div className="overflow-hidden rounded-lg bg-panel-low">
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-            <h3 className="text-[14px] font-semibold">{person}</h3>
-            <span className="font-mono text-[10px] text-line">
-              POST /api/members/trades
-              {tradesLoading ? " · carregando" : ` · ${formatCount(tradeTotal)} operações`}
-            </span>
-          </div>
-          {tradesError ? <p className="px-3 pb-2 text-[12px] text-danger">{tradesError}</p> : null}
-          <div className="max-h-[28rem] overflow-auto">
-            <table className="w-full min-w-[760px] text-left">
-              <thead className="sticky top-0 bg-panel-low font-mono text-[10px] tracking-wider text-line uppercase">
-                <tr>
-                  <th className="px-3 py-2 font-bold">Operação</th>
-                  <th className="px-3 py-2 font-bold">Divulgação</th>
-                  <th className="px-3 py-2 text-center font-bold">Tipo</th>
-                  <th className="px-3 py-2 font-bold">Ticker</th>
-                  <th className="px-3 py-2 font-bold">Ativo</th>
-                  <th className="px-3 py-2 text-right font-bold">Valor</th>
-                  <th className="px-3 py-2 font-bold">Câmara</th>
-                  <th className="px-3 py-2 text-center font-bold">PTR</th>
-                </tr>
-              </thead>
-              <tbody>
-                {trades.length === 0 ? (
-                  <tr>
-                    <td colSpan={8} className="px-3 py-6 text-center text-[13px] text-ink-dim">
-                      {tradesLoading ? "Listando todas as operações…" : "Nenhuma operação para essa pessoa."}
-                    </td>
-                  </tr>
-                ) : (
-                  trades.map((trade, index) => (
-                    <tr key={`${trade.link}-${trade.ticker}-${trade.tx_date}-${index}`} className="border-t border-canvas">
-                      <td className="px-3 py-2 font-mono text-[11px]">{formatDate(trade.tx_date)}</td>
-                      <td className="px-3 py-2 font-mono text-[11px] text-line">{formatDate(trade.disclosed)}</td>
-                      <td className="px-3 py-2 text-center">
-                        <TypeBadge type={trade.trade_type} />
-                      </td>
-                      <td className="px-3 py-2 font-mono text-[12px] font-bold">{trade.ticker ? `$${trade.ticker}` : "—"}</td>
-                      <td className="max-w-56 px-3 py-2 text-[13px] text-ink-dim">
-                        <span className="line-clamp-2">{trade.asset || "—"}</span>
-                      </td>
-                      <td className="px-3 py-2 text-right font-mono text-[12px] whitespace-nowrap">{trade.amount || "—"}</td>
-                      <td className="px-3 py-2 font-mono text-[10px] tracking-wider text-line uppercase">{trade.chamber || "—"}</td>
-                      <td className="px-3 py-2 text-center">
-                        {trade.link ? (
-                          <a
-                            href={trade.link}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex rounded bg-canvas px-2 py-1 font-mono text-[10px] text-line transition-colors hover:bg-mint hover:text-[#00422b]"
-                          >
-                            PTR
-                          </a>
-                        ) : (
-                          "—"
-                        )}
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : (
-        <p className="font-mono text-[10px] text-line">
-          Escolha um nome no gráfico ou no autocomplete para listar todas as operações dessa pessoa.
-        </p>
+      <p className="font-mono text-[10px] text-line">
+        Escolha um nome no gráfico ou no autocomplete para listar todas as operações dessa pessoa.
+      </p>
+        </>
       )}
+      </PanelSwap>
     </section>
   );
 }
@@ -616,7 +645,9 @@ function Donut({
           role="img"
           aria-label="Participação do ranking"
         >
-          {arcs.length === 0 ? <circle cx="50" cy="50" r="46" className="fill-panel-high" /> : null}
+          {arcs.length === 0 ? (
+            <circle cx="50" cy="50" r="34" fill="none" className="stroke-panel-high" strokeWidth="28" />
+          ) : null}
           <g onMouseLeave={() => onHover(null)}>
             {arcs.map((arc) => (
               <path
@@ -637,7 +668,7 @@ function Donut({
         </svg>
         {loading ? (
           <div className="absolute inset-0 flex items-center justify-center">
-            <span className="absolute inset-4 animate-pulse rounded-full bg-[#86948a]/35" />
+            <span className="absolute inset-2 animate-pulse rounded-full border-[42px] border-[#86948a]/35" />
             <span
               className="relative h-8 w-8 animate-spin rounded-full border-2 border-[#c5c8d0] border-t-transparent"
               role="status"
@@ -646,10 +677,10 @@ function Donut({
           </div>
         ) : null}
         {!loading && hovered ? (
-          <div className="pointer-events-none absolute bottom-2 left-1/2 z-10 w-[92%] -translate-x-1/2 rounded-lg bg-[#10131a]/95 px-2 py-1.5 text-center shadow-lg">
-            <p className="text-[13px] leading-tight font-semibold">{hovered.name}</p>
-            <p className="font-mono text-[11px] font-bold text-mint">{percent(hovered.count, chartTotal)} do gráfico</p>
-            <p className="font-mono text-[11px] text-line">{percent(hovered.count, total)} do total</p>
+          <div className="pointer-events-none absolute inset-[27%] z-10 flex flex-col items-center justify-center px-1 text-center">
+            <p className="line-clamp-2 text-[12px] leading-tight font-semibold">{hovered.name}</p>
+            <p className="font-mono text-[10px] font-bold text-mint">{percent(hovered.count, chartTotal)} do gráfico</p>
+            <p className="font-mono text-[10px] text-line">{percent(hovered.count, total)} do total</p>
           </div>
         ) : null}
       </div>
@@ -715,7 +746,7 @@ function pieArcs(slices: Slice[]): Array<Slice & { d: string }> {
   const chartTotal = slices.reduce((sum, slice) => sum + slice.count, 0);
   if (chartTotal <= 0) return [];
   const outer = 48;
-  const inner = 0;
+  const inner = 28;
   let angle = -Math.PI / 2;
   return slices
     .filter((slice) => slice.count > 0)

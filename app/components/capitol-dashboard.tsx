@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
+import { ActivityRanks } from "./activity-ranks";
+import { BiggestBuyer } from "./biggest-buyer";
 import { OperationsBoard } from "./operations-board";
 
 type Trade = {
@@ -107,7 +109,7 @@ export function CapitolDashboard() {
   const [meta, setMeta] = useState({ total: 0, offset: 0, limit: 25, has_more: false });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [lastUrl, setLastUrl] = useState("GET /api/trades/recent?limit=25");
+  const [lastUrl, setLastUrl] = useState("Trades recentes");
   const [health, setHealth] = useState<Health | null>(null);
   const [healthError, setHealthError] = useState<string | null>(null);
   const [memberQuery, setMemberQuery] = useState("");
@@ -170,7 +172,7 @@ export function CapitolDashboard() {
       .catch((reason: unknown) => {
         if (controller.signal.aborted || isAbort(reason)) return;
         setRows([]);
-        setError(reason instanceof Error ? reason.message : "falha na API");
+        setError(reason instanceof Error ? reason.message : "falha ao carregar");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);
@@ -196,7 +198,7 @@ export function CapitolDashboard() {
   function runTicker() {
     const ticker = draft.ticker.trim();
     if (!ticker) {
-      setError("Informe o ticker para GET /api/trades/{ticker}.");
+      setError("Informe o ticker para consultar.");
       return;
     }
     const filters = { ...draft, offset: "0" };
@@ -219,7 +221,7 @@ export function CapitolDashboard() {
     event.preventDefault();
     const q = memberQuery.trim();
     if (!q) {
-      setMemberNote("q obrigatório em POST /api/members/search");
+      setMemberNote("Digite um trecho do nome para buscar.");
       return;
     }
     setMemberBusy(true);
@@ -233,7 +235,7 @@ export function CapitolDashboard() {
       const total = body.total ?? 0;
       setMembers(body.names ?? []);
       setMemberTotal(total);
-      setMemberNote(`POST /api/members/search · ${total} ${total === 1 ? "nome" : "nomes"}`);
+      setMemberNote(`${total} ${total === 1 ? "nome encontrado" : "nomes encontrados"}`);
     } catch (reason) {
       setMembers([]);
       setMemberTotal(null);
@@ -254,7 +256,7 @@ export function CapitolDashboard() {
       });
       setMembers(body.names ?? []);
       setMemberTotal(body.total ?? 0);
-      setMemberNote(`POST /api/members · ${body.total ?? 0} nomes`);
+      setMemberNote(`${body.total ?? 0} nomes na base`);
     } catch (reason) {
       setMembers([]);
       setMemberTotal(null);
@@ -268,7 +270,7 @@ export function CapitolDashboard() {
     event.preventDefault();
     const name = memberName.trim();
     if (!name) {
-      setError("Nome obrigatório para POST /api/members/trades.");
+      setError("Informe o nome do membro.");
       return;
     }
     const limit = clampInt(memberLimit, 25, 1, 500);
@@ -287,7 +289,7 @@ export function CapitolDashboard() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <header className="fixed top-0 right-0 left-0 z-40 flex h-16 items-center justify-between gap-4 bg-panel-low/95 px-4 backdrop-blur-md">
+      <header className="flex h-16 shrink-0 items-center justify-between gap-4 bg-panel-low px-4">
         <div className="flex min-w-0 items-center gap-4">
           <div className="flex items-center gap-2 rounded-lg bg-canvas px-3 py-1">
             <span className="font-mono text-[10px] font-bold tracking-wider text-line uppercase">Wash D.C.</span>
@@ -306,7 +308,7 @@ export function CapitolDashboard() {
             runLedger(draft);
           }}
         >
-          <label className="relative hidden sm:block">
+          <label className="relative hidden">
             <span className="sr-only">Busca geral (q)</span>
             <SearchIcon />
             <input
@@ -316,7 +318,7 @@ export function CapitolDashboard() {
               className="h-8 w-72 rounded-lg bg-canvas pr-3 pl-9 font-sans text-[12px] text-ink outline-none placeholder:text-line focus:bg-panel-high"
             />
           </label>
-          <div className="hidden items-center gap-2 pl-1 md:flex">
+          <div className="hidden">
             <span className="flex h-8 w-8 items-center justify-center rounded-full bg-mint font-mono text-[11px] font-bold text-canvas">
               FS
             </span>
@@ -328,8 +330,16 @@ export function CapitolDashboard() {
         </form>
       </header>
 
-      <main className="flex flex-col gap-4 px-4 pt-20 pb-8">
-        <OperationsBoard />
+      <main className="flex flex-col gap-4 px-4 pt-4 pb-8">
+        <div className="grid w-full grid-cols-1 items-stretch gap-4 lg:grid-cols-12">
+          <div className="min-w-0 lg:col-span-6">
+            <OperationsBoard />
+          </div>
+          <div className="grid min-h-0 grid-cols-1 gap-4 lg:col-span-6 lg:h-0 lg:min-h-full lg:grid-rows-[minmax(0,calc((100%-1rem)/2+2.5rem))_minmax(0,calc((100%-1rem)/2-2.5rem))]">
+            <ActivityRanks />
+            <BiggestBuyer />
+          </div>
+        </div>
         <section className="order-2 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Kpi
             label="Operações na consulta"
@@ -359,7 +369,7 @@ export function CapitolDashboard() {
             detail={
               stats.top
                 ? `${stats.top.count} operações · ${stats.top.buyPct}% compra`
-                : "Preencha os filtros e consulte a API"
+                : "Preencha os filtros e consulte"
             }
           />
           <Kpi
@@ -372,380 +382,277 @@ export function CapitolDashboard() {
             }
             detail={
               health
-                ? `próximo refresh ${health.next_refresh_in_minutes} min · GET /api/health`
-                : (healthError ?? "GET /api/health")
+                ? `próximo refresh em ${health.next_refresh_in_minutes} min`
+                : (healthError ?? "Status indisponível")
             }
             valueClass={health?.data_current ? "text-mint" : undefined}
           />
         </section>
 
-        <div className="order-1 grid grid-cols-1 gap-3 lg:grid-cols-12">
-          <section className="flex flex-col gap-3 lg:col-span-8">
-            <form
-              className="order-2 flex flex-col gap-3 rounded-xl bg-panel p-3"
-              onSubmit={(event) => {
-                event.preventDefault();
-                runLedger(draft);
-              }}
-            >
-              <h2 className="text-[14px] font-semibold tracking-tight">Filtros da API</h2>
+          <div className="order-1 grid grid-cols-1 gap-3 lg:grid-cols-12">
+            <section className="flex flex-col gap-3 lg:col-span-8">
+              {/* <form
+                className="order-2 flex flex-col gap-3 rounded-xl bg-panel p-3"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  runLedger(draft);
+                }}
+              > */}
+                {/* <h2 className="text-[14px] font-semibold tracking-tight">Filtros</h2>
 
-              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-                <Field label="q" className="sm:hidden">
-                  <input
-                    value={draft.q}
-                    onChange={(event) => updateDraft("q", event.target.value)}
-                    placeholder="busca geral"
-                    className={INPUT}
-                  />
-                </Field>
-                <Field label="member">
-                  <input
-                    value={draft.member}
-                    onChange={(event) => updateDraft("member", event.target.value)}
-                    placeholder="Pelosi"
-                    className={INPUT}
-                  />
-                </Field>
-                <Field label="asset">
-                  <input
-                    value={draft.asset}
-                    onChange={(event) => updateDraft("asset", event.target.value)}
-                    placeholder="NVIDIA"
-                    className={INPUT}
-                  />
-                </Field>
-                <Field label="ticker">
-                  <input
-                    value={draft.ticker}
-                    onChange={(event) => updateDraft("ticker", event.target.value)}
-                    placeholder="NVDA"
-                    className={INPUT}
-                  />
-                </Field>
-                <Field label="endpoint">
-                  <select
-                    value={endpoint}
-                    onChange={(event) => setEndpoint(event.target.value === "recent" ? "recent" : "trades")}
-                    className={INPUT}
-                  >
-                    <option value="trades">GET /api/trades</option>
-                    <option value="recent">GET /api/trades/recent</option>
-                  </select>
-                </Field>
-                <Field label="chamber">
-                  <select
-                    value={draft.chamber}
-                    onChange={(event) => updateDraft("chamber", event.target.value)}
-                    className={INPUT}
-                  >
-                    <option value="">todas</option>
-                    <option value="senate">senate</option>
-                    <option value="house">house</option>
-                  </select>
-                </Field>
-                <Field label="trade_type">
-                  <select
-                    value={draft.trade_type}
-                    onChange={(event) => updateDraft("trade_type", event.target.value)}
-                    className={INPUT}
-                  >
-                    <option value="">todos</option>
-                    <option value="buy">buy</option>
-                    <option value="sell">sell</option>
-                    <option value="exchange">exchange</option>
-                  </select>
-                </Field>
-                <Field label="amount">
-                  <input
-                    value={draft.amount}
-                    onChange={(event) => updateDraft("amount", event.target.value)}
-                    placeholder="$15,000"
-                    className={INPUT}
-                  />
-                </Field>
-                <Field label="days">
-                  <input
-                    value={draft.days}
-                    onChange={(event) => updateDraft("days", event.target.value)}
-                    inputMode="numeric"
-                    placeholder="30"
-                    className={INPUT}
-                  />
-                </Field>
-                <Field label="tx_date_from">
-                  <input
-                    type="date"
-                    value={draft.tx_date_from}
-                    onChange={(event) => updateDraft("tx_date_from", event.target.value)}
-                    className={INPUT}
-                  />
-                </Field>
-                <Field label="tx_date_to">
-                  <input
-                    type="date"
-                    value={draft.tx_date_to}
-                    onChange={(event) => updateDraft("tx_date_to", event.target.value)}
-                    className={INPUT}
-                  />
-                </Field>
-                <Field label="disclosed_from">
-                  <input
-                    type="date"
-                    value={draft.disclosed_from}
-                    onChange={(event) => updateDraft("disclosed_from", event.target.value)}
-                    className={INPUT}
-                  />
-                </Field>
-                <Field label="disclosed_to">
-                  <input
-                    type="date"
-                    value={draft.disclosed_to}
-                    onChange={(event) => updateDraft("disclosed_to", event.target.value)}
-                    className={INPUT}
-                  />
-                </Field>
-                <Field label="limit">
-                  <input
-                    value={draft.limit}
-                    onChange={(event) => updateDraft("limit", event.target.value)}
-                    inputMode="numeric"
-                    placeholder="25"
-                    className={INPUT}
-                  />
-                </Field>
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="submit"
-                  className="rounded-lg bg-mint px-3 py-1.5 text-[13px] font-semibold text-[#00422b] transition-colors hover:brightness-110"
-                >
-                  Consultar ledger
-                </button>
-                <button
-                  type="button"
-                  onClick={runTicker}
-                  className="rounded-lg bg-panel-high px-3 py-1.5 font-mono text-[11px] font-bold tracking-wide text-mint uppercase transition-colors hover:bg-panel hover:text-mint-deep"
-                >
-                  GET /api/trades/{"{ticker}"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDraft(INITIAL_FILTERS);
-                    setEndpoint("recent");
-                    setRequest({ kind: "trades", endpoint: "recent", filters: INITIAL_FILTERS });
-                  }}
-                  className="rounded-lg bg-canvas px-3 py-1.5 text-[13px] text-ink-dim transition-colors hover:bg-panel-high hover:text-ink"
-                >
-                  Limpar
-                </button>
-              </div>
-            </form>
-
-            <div className="order-1 overflow-hidden rounded-xl bg-panel">
-              <div className="flex flex-col gap-3 border-b border-canvas px-3 py-3 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-mint" />
-                  <h1 className="text-[18px] font-semibold tracking-tight">Trades recentes</h1>
-                  <span className="rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-line">
-                    {request.kind === "trades" && request.endpoint === "recent"
-                      ? "GET /api/trades/recent"
-                      : lastUrl}
-                  </span>
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  <Field label="q" className="sm:hidden">
+                    <input
+                      value={draft.q}
+                      onChange={(event) => updateDraft("q", event.target.value)}
+                      placeholder="busca geral"
+                      className={INPUT}
+                    />
+                  </Field>
+                  <Field label="member">
+                    <input
+                      value={draft.member}
+                      onChange={(event) => updateDraft("member", event.target.value)}
+                      placeholder="Pelosi"
+                      className={INPUT}
+                    />
+                  </Field>
+                  <Field label="asset">
+                    <input
+                      value={draft.asset}
+                      onChange={(event) => updateDraft("asset", event.target.value)}
+                      placeholder="NVIDIA"
+                      className={INPUT}
+                    />
+                  </Field>
+                  <Field label="ticker">
+                    <input
+                      value={draft.ticker}
+                      onChange={(event) => updateDraft("ticker", event.target.value)}
+                      placeholder="NVDA"
+                      className={INPUT}
+                    />
+                  </Field>
+                  <Field label="fonte">
+                    <select
+                      value={endpoint}
+                      onChange={(event) => setEndpoint(event.target.value === "recent" ? "recent" : "trades")}
+                      className={INPUT}
+                    >
+                      <option value="trades">Ledger completo</option>
+                      <option value="recent">Trades recentes</option>
+                    </select>
+                  </Field>
+                  <Field label="chamber">
+                    <select
+                      value={draft.chamber}
+                      onChange={(event) => updateDraft("chamber", event.target.value)}
+                      className={INPUT}
+                    >
+                      <option value="">todas</option>
+                      <option value="senate">senate</option>
+                      <option value="house">house</option>
+                    </select>
+                  </Field>
+                  <Field label="trade_type">
+                    <select
+                      value={draft.trade_type}
+                      onChange={(event) => updateDraft("trade_type", event.target.value)}
+                      className={INPUT}
+                    >
+                      <option value="">todos</option>
+                      <option value="buy">buy</option>
+                      <option value="sell">sell</option>
+                      <option value="exchange">exchange</option>
+                    </select>
+                  </Field>
+                  <Field label="amount">
+                    <input
+                      value={draft.amount}
+                      onChange={(event) => updateDraft("amount", event.target.value)}
+                      placeholder="$15,000"
+                      className={INPUT}
+                    />
+                  </Field>
+                  <Field label="days">
+                    <input
+                      value={draft.days}
+                      onChange={(event) => updateDraft("days", event.target.value)}
+                      inputMode="numeric"
+                      placeholder="30"
+                      className={INPUT}
+                    />
+                  </Field>
+                  <Field label="tx_date_from">
+                    <input
+                      type="date"
+                      value={draft.tx_date_from}
+                      onChange={(event) => updateDraft("tx_date_from", event.target.value)}
+                      className={INPUT}
+                    />
+                  </Field>
+                  <Field label="tx_date_to">
+                    <input
+                      type="date"
+                      value={draft.tx_date_to}
+                      onChange={(event) => updateDraft("tx_date_to", event.target.value)}
+                      className={INPUT}
+                    />
+                  </Field>
+                  <Field label="disclosed_from">
+                    <input
+                      type="date"
+                      value={draft.disclosed_from}
+                      onChange={(event) => updateDraft("disclosed_from", event.target.value)}
+                      className={INPUT}
+                    />
+                  </Field>
+                  <Field label="disclosed_to">
+                    <input
+                      type="date"
+                      value={draft.disclosed_to}
+                      onChange={(event) => updateDraft("disclosed_to", event.target.value)}
+                      className={INPUT}
+                    />
+                  </Field>
+                  <Field label="limit">
+                    <input
+                      value={draft.limit}
+                      onChange={(event) => updateDraft("limit", event.target.value)}
+                      inputMode="numeric"
+                      placeholder="25"
+                      className={INPUT}
+                    />
+                  </Field>
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <Pill active={draft.chamber === "" && draft.trade_type === ""} onClick={() => runLedger({ ...draft, chamber: "", trade_type: "" }, "recent")}>
-                    Recentes
-                  </Pill>
-                  <Pill active={draft.chamber === "senate"} onClick={() => runLedger({ ...draft, chamber: "senate" }, "recent")}>
-                    Senado
-                  </Pill>
-                  <Pill active={draft.chamber === "house"} onClick={() => runLedger({ ...draft, chamber: "house" }, "recent")}>
-                    Câmara
-                  </Pill>
-                  <Pill
-                    active={draft.trade_type === "buy"}
-                    onClick={() => runLedger({ ...draft, trade_type: draft.trade_type === "buy" ? "" : "buy" }, "recent")}
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="submit"
+                    className="rounded-lg bg-mint px-3 py-1.5 text-[13px] font-semibold text-[#00422b] transition-colors hover:brightness-110"
                   >
-                    Compra
-                  </Pill>
-                  <Pill
-                    active={draft.trade_type === "sell"}
-                    onClick={() => runLedger({ ...draft, trade_type: draft.trade_type === "sell" ? "" : "sell" }, "recent")}
+                    Consultar ledger
+                  </button>
+                  <button
+                    type="button"
+                    onClick={runTicker}
+                    className="rounded-lg bg-panel-high px-3 py-1.5 font-mono text-[11px] font-bold tracking-wide text-mint uppercase transition-colors hover:bg-panel hover:text-mint-deep"
                   >
-                    Venda
-                  </Pill>
+                    Consultar por ticker
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDraft(INITIAL_FILTERS);
+                      setEndpoint("recent");
+                      setRequest({ kind: "trades", endpoint: "recent", filters: INITIAL_FILTERS });
+                    }}
+                    className="rounded-lg bg-canvas px-3 py-1.5 text-[13px] text-ink-dim transition-colors hover:bg-panel-high hover:text-ink"
+                  >
+                    Limpar
+                  </button>
                 </div>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[860px] text-left">
-                  <thead className="bg-panel-low font-mono text-[10px] tracking-wider text-line uppercase">
-                    <tr>
-                      <th className="px-3 py-2 font-bold">Político e câmara</th>
-                      <th className="px-3 py-2 font-bold">Ativo</th>
-                      <th className="px-3 py-2 text-center font-bold">Tipo</th>
-                      <th className="px-3 py-2 font-bold">Ticker</th>
-                      <th className="px-3 py-2 text-right font-bold">Valor divulgado</th>
-                      <th className="px-3 py-2 font-bold">Linha do tempo</th>
-                      <th className="px-3 py-2 text-center font-bold">PTR</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.length === 0 ? (
+              </form> */}
+
+              <div className="order-1 overflow-hidden rounded-xl bg-panel">
+                <div className="flex flex-col gap-3 border-b border-canvas px-3 py-3 md:flex-row md:items-center md:justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-mint" />
+                    <h1 className="text-[18px] font-semibold tracking-tight">Trades recentes</h1>
+                    <span className="rounded bg-canvas px-1.5 py-0.5 font-mono text-[10px] text-line">{lastUrl}</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    <Pill active={draft.chamber === "" && draft.trade_type === ""} onClick={() => runLedger({ ...draft, chamber: "", trade_type: "" }, "recent")}>
+                      Recentes
+                    </Pill>
+                    <Pill active={draft.chamber === "senate"} onClick={() => runLedger({ ...draft, chamber: "senate" }, "recent")}>
+                      Senado
+                    </Pill>
+                    <Pill active={draft.chamber === "house"} onClick={() => runLedger({ ...draft, chamber: "house" }, "recent")}>
+                      Câmara
+                    </Pill>
+                    <Pill
+                      active={draft.trade_type === "buy"}
+                      onClick={() => runLedger({ ...draft, trade_type: draft.trade_type === "buy" ? "" : "buy" }, "recent")}
+                    >
+                      Compra
+                    </Pill>
+                    <Pill
+                      active={draft.trade_type === "sell"}
+                      onClick={() => runLedger({ ...draft, trade_type: draft.trade_type === "sell" ? "" : "sell" }, "recent")}
+                    >
+                      Venda
+                    </Pill>
+                  </div>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[860px] text-left">
+                    <thead className="bg-panel-low font-mono text-[10px] tracking-wider text-line uppercase">
                       <tr>
-                        <td colSpan={7} className="px-3 py-8 text-center text-[13px] text-ink-dim">
-                          {loading ? "Consultando a API…" : (error ?? "Nenhum trade para esses campos.")}
-                        </td>
+                        <th className="px-3 py-2 font-bold">Político e câmara</th>
+                        <th className="px-3 py-2 font-bold">Ativo</th>
+                        <th className="px-3 py-2 text-center font-bold">Tipo</th>
+                        <th className="px-3 py-2 font-bold">Ticker</th>
+                        <th className="px-3 py-2 text-right font-bold">Valor divulgado</th>
+                        <th className="px-3 py-2 font-bold">Linha do tempo</th>
+                        <th className="px-3 py-2 text-center font-bold">PTR</th>
                       </tr>
-                    ) : (
-                      rows.map((trade, index) => (
-                        <TradeRow key={`${trade.link}-${trade.ticker}-${trade.tx_date}-${index}`} trade={trade} />
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <div className="flex flex-col gap-2 bg-panel-low px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
-                <p className="font-mono text-[10px] text-line">
-                  {meta.total === 0
-                    ? "0 TRANSAÇÕES"
-                    : `MOSTRANDO ${pageStart}–${pageEnd} DE ${meta.total}`}
-                  <span className="ml-3 text-ink-dim">{lastUrl}</span>
-                </p>
-                <div className="flex items-center gap-1">
-                  <button
-                    type="button"
-                    disabled={meta.offset <= 0 || loading}
-                    onClick={() => turnPage(Math.max(0, meta.offset - meta.limit))}
-                    className="rounded bg-canvas px-2 py-1 font-mono text-[10px] tracking-wider text-line uppercase transition-colors hover:bg-panel-high hover:text-ink disabled:opacity-40 disabled:hover:bg-canvas disabled:hover:text-line"
-                  >
-                    Prev
-                  </button>
-                  <span className="rounded bg-panel-high px-2 py-1 font-mono text-[11px] font-bold text-mint">
-                    {meta.limit === 0 ? 1 : Math.floor(meta.offset / meta.limit) + 1}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={!meta.has_more || loading}
-                    onClick={() => turnPage(meta.offset + meta.limit)}
-                    className="rounded bg-canvas px-2 py-1 font-mono text-[10px] tracking-wider text-line uppercase transition-colors hover:bg-panel-high hover:text-ink disabled:opacity-40 disabled:hover:bg-canvas disabled:hover:text-line"
-                  >
-                    Next
-                  </button>
+                    </thead>
+                    <tbody>
+                      {rows.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-3 py-8 text-center text-[13px] text-ink-dim">
+                            {loading ? "Carregando…" : (error ?? "Nenhum trade para esses campos.")}
+                          </td>
+                        </tr>
+                      ) : (
+                        rows.map((trade, index) => (
+                          <TradeRow key={`${trade.link}-${trade.ticker}-${trade.tx_date}-${index}`} trade={trade} />
+                        ))
+                      )}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-              {error && rows.length > 0 ? (
-                <p className="px-3 py-2 text-[12px] text-danger">{error}</p>
-              ) : null}
-            </div>
-
-            <div className="order-3">
-              <MonthMix rows={stats.months} />
-            </div>
-          </section>
-
-          <aside className="flex flex-col gap-3 lg:col-span-4">
-            <section className="flex flex-col gap-3 rounded-xl bg-panel p-3">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="text-[14px] font-semibold">Membros</h2>
-                <span className="font-mono text-[10px] tracking-wider text-line uppercase">
-                  {memberTotal === null ? "POST" : `${memberTotal} nomes`}
-                </span>
-              </div>
-              <form className="flex gap-2" onSubmit={searchMembers}>
-                <label className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="font-mono text-[10px] font-bold tracking-wider text-line uppercase">q</span>
-                  <input
-                    value={memberQuery}
-                    onChange={(event) => setMemberQuery(event.target.value)}
-                    placeholder="Spanberger"
-                    className={INPUT}
-                  />
-                </label>
-                <button
-                  type="submit"
-                  disabled={memberBusy}
-                  className="mt-4 h-8 rounded-lg bg-mint px-3 text-[12px] font-semibold text-[#00422b] transition-colors hover:brightness-110 disabled:opacity-60 disabled:hover:brightness-100"
-                >
-                  Buscar
-                </button>
-              </form>
-              <p className="font-mono text-[10px] text-line">POST /api/members/search</p>
-              <button
-                type="button"
-                disabled={memberBusy}
-                onClick={() => void listMembers()}
-                className="h-8 rounded-lg bg-canvas px-3 text-[12px] text-ink-dim transition-colors hover:bg-panel-high hover:text-ink disabled:opacity-60 disabled:hover:bg-canvas disabled:hover:text-ink-dim"
-              >
-                Listar todos · POST /api/members
-              </button>
-              {memberNote ? <p className="font-mono text-[10px] text-ink-dim">{memberNote}</p> : null}
-              <ul className="flex max-h-52 flex-col gap-1 overflow-auto">
-                {members.slice(0, 80).map((member) => (
-                  <li key={member.name}>
+                <div className="flex flex-col gap-2 bg-panel-low px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="font-mono text-[10px] text-line">
+                    {meta.total === 0
+                      ? "0 TRANSAÇÕES"
+                      : `MOSTRANDO ${pageStart}–${pageEnd} DE ${meta.total}`}
+                    <span className="ml-3 text-ink-dim">{lastUrl}</span>
+                  </p>
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      onClick={() => openMember(member.name)}
-                      className="flex w-full items-center justify-between gap-2 rounded-lg bg-panel-low px-2 py-1.5 text-left transition-colors hover:bg-panel-high"
+                      disabled={meta.offset <= 0 || loading}
+                      onClick={() => turnPage(Math.max(0, meta.offset - meta.limit))}
+                      className="rounded bg-canvas px-2 py-1 font-mono text-[10px] tracking-wider text-line uppercase transition-colors hover:bg-panel-high hover:text-ink disabled:opacity-40 disabled:hover:bg-canvas disabled:hover:text-line"
                     >
-                      <span className="truncate text-[13px] font-semibold">{member.name}</span>
-                      <span className="shrink-0 font-mono text-[10px] text-line uppercase">
-                        {member.chambers.join(" · ")}
-                      </span>
+                      Prev
                     </button>
-                  </li>
-                ))}
-              </ul>
-              {members.length > 80 ? (
-                <p className="font-mono text-[10px] text-line">Mostrando 80 de {members.length}. Refine o q.</p>
-              ) : null}
+                    <span className="rounded bg-panel-high px-2 py-1 font-mono text-[11px] font-bold text-mint">
+                      {meta.limit === 0 ? 1 : Math.floor(meta.offset / meta.limit) + 1}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={!meta.has_more || loading}
+                      onClick={() => turnPage(meta.offset + meta.limit)}
+                      className="rounded bg-canvas px-2 py-1 font-mono text-[10px] tracking-wider text-line uppercase transition-colors hover:bg-panel-high hover:text-ink disabled:opacity-40 disabled:hover:bg-canvas disabled:hover:text-line"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+                {error && rows.length > 0 ? (
+                  <p className="px-3 py-2 text-[12px] text-danger">{error}</p>
+                ) : null}
+              </div>
+
+              <div className="order-3">
+                <MonthMix rows={stats.months} />
+              </div>
             </section>
 
-            <form className="flex flex-col gap-2 rounded-xl bg-panel p-3" onSubmit={runMemberTrades}>
-              <div className="flex items-center justify-between">
-                <h2 className="text-[14px] font-semibold">Trades do membro</h2>
-                <span className="font-mono text-[10px] text-line">POST /api/members/trades</span>
-              </div>
-              <Field label="name">
-                <input
-                  value={memberName}
-                  onChange={(event) => setMemberName(event.target.value)}
-                  placeholder="Nancy Pelosi"
-                  className={INPUT}
-                />
-              </Field>
-              <div className="grid grid-cols-2 gap-2">
-                <Field label="limit">
-                  <input
-                    value={memberLimit}
-                    onChange={(event) => setMemberLimit(event.target.value)}
-                    inputMode="numeric"
-                    className={INPUT}
-                  />
-                </Field>
-                <Field label="offset">
-                  <input
-                    value={memberOffset}
-                    onChange={(event) => setMemberOffset(event.target.value)}
-                    inputMode="numeric"
-                    className={INPUT}
-                  />
-                </Field>
-              </div>
-              <button
-                type="submit"
-                className="h-8 rounded-lg bg-panel-high px-3 text-[13px] font-semibold text-mint transition-colors hover:bg-panel hover:text-mint-deep"
-              >
-                Carregar trades
-              </button>
-            </form>
-
-            <TickerBars tickers={stats.tickers} />
-            <Leaderboard leaders={stats.leaders} />
-          </aside>
-        </div>
+          </div>
       </main>
     </div>
   );
@@ -1071,7 +978,7 @@ function describe(request: LedgerRequest): { url: string; label: string; init?: 
   if (request.kind === "member") {
     return {
       url: "/api/members/trades",
-      label: `POST /api/members/trades · ${request.name}`,
+      label: `Trades · ${request.name}`,
       init: {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -1083,10 +990,11 @@ function describe(request: LedgerRequest): { url: string; label: string; init?: 
   const query = params.size ? `?${params}` : "";
   if (request.kind === "ticker") {
     const path = `/api/trades/${encodeURIComponent(request.ticker)}`;
-    return { url: `${path}${query}`, label: `GET ${path}${query}` };
+    return { url: `${path}${query}`, label: `Ticker · ${request.ticker.toUpperCase()}` };
   }
   const path = request.endpoint === "recent" ? "/api/trades/recent" : "/api/trades";
-  return { url: `${path}${query}`, label: `GET ${path}${query}` };
+  const label = request.endpoint === "recent" ? "Trades recentes" : "Ledger";
+  return { url: `${path}${query}`, label };
 }
 
 function toParams(filters: Filters, omitTicker: boolean): URLSearchParams {

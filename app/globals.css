@@ -1,6 +1,9 @@
 @import "tailwindcss";
 
 @theme inline {
+  --motion-panel-swap-duration: 240ms;
+  --motion-panel-swap-exit-duration: 180ms;
+  --motion-panel-swap-ease: cubic-bezier(0.22, 1, 0.36, 1);
   --color-canvas: #0b0e14;
   --color-surface: #10131a;
   --color-panel: #1d2026;
@@ -64,5 +67,81 @@ body {
   select:disabled,
   [aria-disabled="true"] {
     cursor: not-allowed;
+  }
+}
+
+/* Panel swap — padrão em docs/UI-MOTION.md */
+@keyframes panel-swap-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes panel-swap-exit {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.99);
+  }
+}
+
+.panel-swap {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.panel-swap__surface {
+  animation: panel-swap-enter var(--motion-panel-swap-duration) var(--motion-panel-swap-ease) both;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+}
+
+.panel-swap-vt {
+  view-transition-name: panel-swap-region;
+}
+
+::view-transition-old(panel-swap-region) {
+  animation: panel-swap-exit var(--motion-panel-swap-exit-duration) var(--motion-panel-swap-ease) both;
+}
+
+::view-transition-new(panel-swap-region) {
+  animation: panel-swap-enter var(--motion-panel-swap-duration) var(--motion-panel-swap-ease) both;
+}
+
+.panel-swap-vt-company {
+  view-transition-name: panel-swap-company;
+}
+
+::view-transition-old(panel-swap-company) {
+  animation: panel-swap-exit var(--motion-panel-swap-exit-duration) var(--motion-panel-swap-ease) both;
+}
+
+::view-transition-new(panel-swap-company) {
+  animation: panel-swap-enter var(--motion-panel-swap-duration) var(--motion-panel-swap-ease) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel-swap__surface {
+    animation: none;
+  }
+
+  ::view-transition-old(panel-swap-region),
+  ::view-transition-new(panel-swap-region),
+  ::view-transition-old(panel-swap-company),
+  ::view-transition-new(panel-swap-company) {
+    animation: none;
   }
 }

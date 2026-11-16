@@ -398,6 +398,333 @@ export async function queryOperationLeaders(
   };
 }
 
+export type CompanyLeader = {
+  ticker: string;
+  name: string;
+  count: number;
+  value: number;
+};
+
+export type CompanyMetric = "buy" | "sell" | "buy_value" | "sell_value";
+
+export type CompanyLeaders = {
+  total: number;
+  metric: CompanyMetric;
+  leaders: CompanyLeader[];
+};
+
+export type CompanyTrade = {
+  member: string;
+  chamber: string;
+  trade_type: string;
+  amount: string;
+  tx_date: string | null;
+  disclosed: string;
+  link: string;
+};
+
+export type CompanyDetail = {
+  ticker: string;
+  name: string;
+  buys: number;
+  sells: number;
+  buy_value: number;
+  sell_value: number;
+  trades: CompanyTrade[];
+};
+
+const COMPANY_METRICS = new Set<CompanyMetric>(["buy", "sell", "buy_value", "sell_value"]);
+
+export function parseCompanyMetric(value: unknown): CompanyMetric | null {
+  if (typeof value === "string" && COMPANY_METRICS.has(value as CompanyMetric)) return value as CompanyMetric;
+  return null;
+}
+
+const AMOUNT_MIDPOINT = `CROSS JOIN LATERAL (
+    SELECT CASE
+      WHEN cardinality(nums) = 0 THEN NULL::numeric
+      WHEN cardinality(nums) = 1 THEN nums[1]
+      ELSE (nums[1] + nums[cardinality(nums)]) / 2
+    END AS midpoint
+    FROM (
+      SELECT COALESCE(
+        ARRAY(
+          SELECT amount_match[1]::numeric
+          FROM regexp_matches(
+            regexp_replace(coalesce(ops.amount, ''), '[$,]', '', 'g'),
+            '\\d+(?:\\.\\d+)?',
+            'g'
+          ) AS amount_match
+        ),
+        ARRAY[]::numeric[]
+      ) AS nums
+    ) AS parsed
+  ) AS valued`;
+
+const COMPANY_VALUE: Record<CompanyMetric, string> = {
+  buy: "count(*) FILTER (WHERE trade_type = 'buy')",
+  sell: "count(*) FILTER (WHERE trade_type = 'sell')",
+  buy_value: "coalesce(sum(midpoint) FILTER (WHERE trade_type = 'buy'), 0)",
+  sell_value: "coalesce(sum(midpoint) FILTER (WHERE trade_type = 'sell'), 0)",
+};
+
+const COMPANY_OPS = `WITH scored AS (
+  SELECT upper(btrim(ops.ticker)) AS ticker,
+         regexp_replace(btrim(ops.asset), '\\s+-\\s+.*$', '') AS cleaned,
+         lower(btrim(ops.trade_type)) AS trade_type,
+         valued.midpoint
+  FROM (
+    SELECT ticker, asset, trade_type, amount, tx_date FROM senate_trades
+    UNION ALL
+    SELECT ticker, asset, trade_type, amount, tx_date FROM house_trades
+  ) AS ops
+  ${AMOUNT_MIDPOINT}
+  WHERE btrim(ops.ticker) <> ''
+    AND ($1::date IS NULL OR ops.tx_date >= $1::date)
+    AND ($2::date IS NULL OR ops.tx_date <= $2::date)
+), labels AS (
+  SELECT ticker, cleaned, count(*) AS uses
+  FROM scored
+  WHERE cleaned <> ''
+    AND cleaned !~* 'F S :'
+    AND cleaned !~* 'filing'
+    AND cleaned !~* 'status'
+    AND cleaned !~* 'tatus'
+    AND cleaned !~* 'holding'
+    AND cleaned !~* 'appendix'
+    AND cleaned !~ '^\\d'
+  GROUP BY ticker, cleaned
+), names AS (
+  SELECT DISTINCT ON (ticker) ticker, cleaned AS name
+  FROM labels
+  ORDER BY ticker, uses DESC, length(cleaned) ASC, cleaned ASC
+)`;
+
+export async function queryCompanyLeaders(
+  range: { from: string | null; to: string | null },
+  metric: CompanyMetric,
+): Promise<CompanyLeaders> {
+  const params = [range.from, range.to];
+  const valueExpr = COMPANY_VALUE[metric];
+  const [totalRow, leaders] = await Promise.all([
+    query<{ total: number | string | bigint }>(
+      `${COMPANY_OPS}
+       SELECT (${valueExpr})::float8 AS total
+       FROM scored`,
+      params,
+    ),
+    query<{ ticker: string; name: string | null; count: number | string | bigint; value: number | string | bigint }>(
+      `${COMPANY_OPS}
+       SELECT scored.ticker AS ticker,
+              names.name AS name,
+              count(*)::int AS count,
+              (${valueExpr})::float8 AS value
+       FROM scored
+       LEFT JOIN names ON names.ticker = scored.ticker
+       GROUP BY scored.ticker, names.name
+       HAVING ${valueExpr} > 0
+       ORDER BY ${valueExpr} DESC, scored.ticker ASC
+       LIMIT 20`,
+      params,
+    ),
+  ]);
+  return {
+    total: Number(totalRow[0]?.total ?? 0),
+    metric,
+    leaders: leaders.map((row) => ({
+      ticker: row.ticker,
+      name: row.name?.trim() || row.ticker,
+      count: Number(row.count),
+      value: Number(row.value),
+    })),
+  };
+}
+
+export async function queryCompanyDetail(
+  ticker: string,
+  range: { from: string | null; to: string | null },
+): Promise<CompanyDetail> {
+  const params = [range.from, range.to, ticker];
+  const [summary, nameRow, trades] = await Promise.all([
+    query<{ buys: number | string | bigint; sells: number | string | bigint; buy_value: number | string | bigint; sell_value: number | string | bigint }>(
+      `WITH scored AS (
+         SELECT lower(btrim(ops.trade_type)) AS trade_type,
+                valued.midpoint
+         FROM (
+           SELECT trade_type, amount, tx_date, ticker FROM senate_trades
+           UNION ALL
+           SELECT trade_type, amount, tx_date, ticker FROM house_trades
+         ) AS ops
+         ${AMOUNT_MIDPOINT}
+         WHERE upper(btrim(ops.ticker)) = $3
+           AND ($1::date IS NULL OR ops.tx_date >= $1::date)
+           AND ($2::date IS NULL OR ops.tx_date <= $2::date)
+       )
+       SELECT count(*) FILTER (WHERE trade_type = 'buy')::int AS buys,
+              count(*) FILTER (WHERE trade_type = 'sell')::int AS sells,
+              coalesce(sum(midpoint) FILTER (WHERE trade_type = 'buy'), 0)::float8 AS buy_value,
+              coalesce(sum(midpoint) FILTER (WHERE trade_type = 'sell'), 0)::float8 AS sell_value
+       FROM scored`,
+      params,
+    ),
+    query<{ name: string }>(
+      `SELECT cleaned AS name
+       FROM (
+         SELECT regexp_replace(btrim(asset), '\\s+-\\s+.*$', '') AS cleaned
+         FROM senate_trades
+         WHERE upper(btrim(ticker)) = $1
+         UNION ALL
+         SELECT regexp_replace(btrim(asset), '\\s+-\\s+.*$', '')
+         FROM house_trades
+         WHERE upper(btrim(ticker)) = $1
+       ) AS names
+       WHERE cleaned <> ''
+         AND cleaned !~* 'F S :'
+         AND cleaned !~* 'filing'
+         AND cleaned !~* 'status'
+         AND cleaned !~* 'tatus'
+         AND cleaned !~* 'holding'
+         AND cleaned !~* 'appendix'
+         AND cleaned !~ '^\\d'
+       GROUP BY cleaned
+       ORDER BY count(*) DESC, length(cleaned) ASC, cleaned ASC
+       LIMIT 1`,
+      [ticker],
+    ),
+    query<CompanyTrade>(
+      `SELECT member, chamber, trade_type, amount,
+              tx_date::text AS tx_date, disclosed::text AS disclosed, link
+       FROM (
+         SELECT member, chamber, trade_type, amount, tx_date, disclosed, link, ticker, id
+         FROM senate_trades
+         UNION ALL
+         SELECT member, chamber, trade_type, amount, tx_date, disclosed, link, ticker, id
+         FROM house_trades
+       ) AS ops
+       WHERE upper(btrim(ticker)) = $3
+         AND ($1::date IS NULL OR tx_date >= $1::date)
+         AND ($2::date IS NULL OR tx_date <= $2::date)
+       ORDER BY tx_date DESC NULLS LAST, disclosed DESC, id DESC
+       LIMIT 40`,
+      params,
+    ),
+  ]);
+  const row = summary[0];
+  return {
+    ticker,
+    name: nameRow[0]?.name?.trim() || ticker,
+    buys: Number(row?.buys ?? 0),
+    sells: Number(row?.sells ?? 0),
+    buy_value: Number(row?.buy_value ?? 0),
+    sell_value: Number(row?.sell_value ?? 0),
+    trades,
+  };
+}
+
+export type BiggestBuyerPeriod = "week" | "month" | "year";
+
+export const BIGGEST_BUYER_DAYS: Record<BiggestBuyerPeriod, number> = {
+  week: 7,
+  month: 30,
+  year: 365,
+};
+
+export type BiggestBuyer = {
+  member: string;
+  chambers: string[];
+  ticker: string;
+  company: string;
+  count: number;
+  value: number;
+  from: string;
+  to: string;
+  period: BiggestBuyerPeriod;
+};
+
+export function parseBiggestBuyerPeriod(value: unknown): BiggestBuyerPeriod | null {
+  if (value === undefined || value === null || value === "") return "week";
+  if (value === "week" || value === "month" || value === "year") return value;
+  return null;
+}
+
+export async function queryBiggestBuyer(period: BiggestBuyerPeriod): Promise<BiggestBuyer | null> {
+  const days = BIGGEST_BUYER_DAYS[period];
+  const rows = await query<{
+    member: string;
+    chambers: unknown;
+    ticker: string;
+    company: string | null;
+    count: number | string | bigint;
+    value: number | string | bigint;
+    from: string;
+    to: string;
+  }>(
+    `WITH scored AS (
+       SELECT btrim(ops.member) AS member,
+              ops.chamber,
+              upper(btrim(ops.ticker)) AS ticker,
+              regexp_replace(btrim(ops.asset), '\\s+-\\s+.*$', '') AS cleaned,
+              valued.midpoint,
+              CURRENT_DATE - $1::int AS range_from,
+              CURRENT_DATE AS range_to
+       FROM (
+         SELECT member, chamber, ticker, asset, trade_type, amount, tx_date FROM senate_trades
+         UNION ALL
+         SELECT member, chamber, ticker, asset, trade_type, amount, tx_date FROM house_trades
+       ) AS ops
+       ${AMOUNT_MIDPOINT}
+       WHERE btrim(ops.ticker) <> ''
+         AND btrim(ops.member) <> ''
+         AND lower(btrim(ops.trade_type)) = 'buy'
+         AND ops.tx_date >= CURRENT_DATE - $1::int
+     ), labels AS (
+       SELECT ticker, cleaned, count(*) AS uses
+       FROM scored
+       WHERE cleaned <> ''
+         AND cleaned !~* 'F S :'
+         AND cleaned !~* 'filing'
+         AND cleaned !~* 'status'
+         AND cleaned !~* 'tatus'
+         AND cleaned !~* 'holding'
+         AND cleaned !~* 'appendix'
+         AND cleaned !~ '^\\d'
+       GROUP BY ticker, cleaned
+     ), names AS (
+       SELECT DISTINCT ON (ticker) ticker, cleaned AS name
+       FROM labels
+       ORDER BY ticker, uses DESC, length(cleaned) ASC, cleaned ASC
+     )
+     SELECT min(scored.member) AS member,
+            array_agg(DISTINCT scored.chamber ORDER BY scored.chamber) AS chambers,
+            scored.ticker AS ticker,
+            names.name AS company,
+            count(*)::int AS count,
+            coalesce(sum(scored.midpoint), 0)::float8 AS value,
+            min(scored.range_from)::text AS from,
+            min(scored.range_to)::text AS to
+     FROM scored
+     LEFT JOIN names ON names.ticker = scored.ticker
+     GROUP BY scored.ticker, lower(scored.member), names.name
+     HAVING coalesce(sum(scored.midpoint), 0) > 0
+     ORDER BY value DESC, min(scored.member) ASC, scored.ticker ASC
+     LIMIT 1`,
+    [days],
+  );
+  const row = rows[0];
+  if (!row) return null;
+  return {
+    member: row.member,
+    chambers: asChambers(row.chambers),
+    ticker: row.ticker,
+    company: row.company?.trim() || row.ticker,
+    count: Number(row.count),
+    value: Number(row.value),
+    from: row.from,
+    to: row.to,
+    period,
+  };
+}
+
 export async function queryMembers(nameQuery: string | null) {
   const rows = await query<PublicMember>(
     `SELECT name, array_agg(DISTINCT chamber ORDER BY chamber) AS chambers
