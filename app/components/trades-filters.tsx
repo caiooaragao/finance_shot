@@ -110,13 +110,13 @@ export function TradesFilters({ filters, total }: { filters: TradeFilters; total
       <div className="flex flex-wrap gap-2">
         <button
           type="submit"
-          className="rounded-lg bg-black px-3 py-2 text-sm text-white dark:bg-zinc-50 dark:text-black"
+          className="rounded-lg bg-black px-3 py-2 text-sm text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-50 dark:text-black dark:hover:bg-zinc-200"
         >
           Filtrar
         </button>
         <a
           href="/"
-          className="rounded-lg border border-black/[.08] px-3 py-2 text-sm text-zinc-700 dark:border-white/[.145] dark:text-zinc-300"
+          className="rounded-lg border border-black/[.08] px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-black/[.04] dark:border-white/[.145] dark:text-zinc-300 dark:hover:bg-white/[.08]"
         >
           Limpar
         </a>

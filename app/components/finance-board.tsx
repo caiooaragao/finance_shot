@@ -151,7 +151,7 @@ function TradesTable({ trades }: { trades: PublicTrade[] }) {
               <td className="px-3 py-2 whitespace-nowrap text-zinc-500">{formatDate(trade.disclosed)}</td>
               <td className="px-3 py-2">
                 <a
-                  className="text-zinc-700 underline underline-offset-2 dark:text-zinc-300"
+                  className="text-zinc-700 underline underline-offset-2 transition-colors hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
                   href={trade.link}
                   target="_blank"
                   rel="noreferrer"
@@ -186,14 +186,20 @@ function Pagination({
   return (
     <div className="flex items-center justify-between gap-3 text-sm">
       {offset > 0 ? (
-        <a className="text-zinc-700 underline underline-offset-2 dark:text-zinc-300" href={hrefForOffset(search, previous)}>
+        <a
+          className="text-zinc-700 underline underline-offset-2 transition-colors hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+          href={hrefForOffset(search, previous)}
+        >
           Anterior
         </a>
       ) : (
         <span />
       )}
       {hasMore ? (
-        <a className="text-zinc-700 underline underline-offset-2 dark:text-zinc-300" href={hrefForOffset(search, next)}>
+        <a
+          className="text-zinc-700 underline underline-offset-2 transition-colors hover:text-zinc-900 dark:text-zinc-300 dark:hover:text-zinc-100"
+          href={hrefForOffset(search, next)}
+        >
           Próxima
         </a>
       ) : (

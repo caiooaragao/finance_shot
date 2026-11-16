@@ -2,7 +2,16 @@ import { bootstrap } from "../bootstrap";
 import { databaseUrl } from "../db/prisma";
 import { runIncremental } from "./senate/run";
 import { readScrapeState } from "./senate/store";
-import { loadHealth, parseMemberSearch, parseTradeQuery, queryMembers, queryTrades } from "./trades";
+import {
+  loadHealth,
+  parseLeaderDates,
+  parseLeaderMetric,
+  parseMemberSearch,
+  parseTradeQuery,
+  queryMembers,
+  queryOperationLeaders,
+  queryTrades,
+} from "./trades";
 import { handlers } from "../workflow/handlers";
 import { getWorkflowRepository } from "../workflow/repository";
 import { dependenciesDone, tick } from "../workflow/runner";
@@ -87,7 +96,29 @@ function jsonInt(value: unknown, fallback: number, min: number, max: number): nu
   return Math.min(max, Math.max(min, Math.floor(raw)));
 }
 
-export async function listMemberTrades(body: { name?: unknown; limit?: unknown; offset?: unknown }) {
+export async function listOperationLeaders(body: {
+  from?: unknown;
+  to?: unknown;
+  tx_date_from?: unknown;
+  tx_date_to?: unknown;
+  date_from?: unknown;
+  date_to?: unknown;
+  metric?: unknown;
+}) {
+  await bootstrap();
+  const range = parseLeaderDates(body);
+  if (!range) return fail(400, "data inválida");
+  if (range.from && range.to && range.from > range.to) return fail(400, "data inicial depois da final");
+  const metric = parseLeaderMetric(body.metric);
+  if (!metric) return fail(400, "medida inválida");
+  try {
+    return ok(await queryOperationLeaders(range, metric));
+  } catch (error) {
+    return fail(503, message(error));
+  }
+}
+
+export async function listMemberTrades(body: { name?: unknown; limit?: unknown; offset?: unknown; all?: unknown }) {
   await bootstrap();
   const member = typeof body.name === "string" ? body.name.trim() : "";
   if (!member) return fail(400, "nome obrigatório");
@@ -95,6 +126,9 @@ export async function listMemberTrades(body: { name?: unknown; limit?: unknown; 
     const tradeQuery = parseTradeQuery(new URLSearchParams());
     tradeQuery.member = member;
     tradeQuery.memberExact = true;
+    if (body.all === true) {
+      return ok({ name: member, ...(await queryTrades(tradeQuery, { unbounded: true })) });
+    }
     tradeQuery.limit = jsonInt(body.limit, tradeQuery.limit, 1, 500);
     tradeQuery.offset = jsonInt(body.offset, tradeQuery.offset, 0, Number.MAX_SAFE_INTEGER);
     return ok({ name: member, ...(await queryTrades(tradeQuery)) });

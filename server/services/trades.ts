@@ -151,7 +151,7 @@ function tradeFilterSql(tickerExact: boolean, memberExact: boolean): string {
     ? "($1::text IS NULL OR ticker = $1)"
     : "($1::text IS NULL OR ticker ILIKE '%' || $1 || '%')";
   const memberClause = memberExact
-    ? "($3::text IS NULL OR lower(member) = lower($3))"
+    ? "($3::text IS NULL OR lower(btrim(member)) = lower($3))"
     : "($3::text IS NULL OR member ILIKE '%' || $3 || '%')";
   return `WHERE ${tickerClause}
     AND ($2::int IS NULL OR disclosed >= CURRENT_DATE - $2::int)
@@ -205,7 +205,7 @@ function tradeTables(chamber: string | null): string[] | null {
   return null;
 }
 
-export async function queryTrades(tradeQuery: TradeQuery) {
+export async function queryTrades(tradeQuery: TradeQuery, options?: { unbounded?: boolean }) {
   const freshness = await loadFreshness();
   const tables = tradeTables(tradeQuery.chamber);
   if (!tables) {
@@ -225,18 +225,22 @@ export async function queryTrades(tradeQuery: TradeQuery) {
     `SELECT count(*)::text AS count FROM (${union}) AS trades`,
     params,
   );
-  const rows = await query<PublicTrade>(
-    `SELECT member, chamber, ticker, trade_type, amount,
+  const selected = `SELECT member, chamber, ticker, trade_type, amount,
             tx_date::text AS tx_date, disclosed::text AS disclosed, asset, link
      FROM (${union}) AS trades
-     ORDER BY disclosed DESC, tx_date DESC NULLS LAST, id DESC
-     LIMIT $15 OFFSET $16`,
-    [...params, tradeQuery.limit, tradeQuery.offset],
-  );
+     ORDER BY disclosed DESC, tx_date DESC NULLS LAST, id DESC`;
+  const rows = options?.unbounded
+    ? await query<PublicTrade>(selected, params)
+    : await query<PublicTrade>(`${selected} LIMIT $15 OFFSET $16`, [
+        ...params,
+        tradeQuery.limit,
+        tradeQuery.offset,
+      ]);
+  const total = Number(totalResult[0]?.count ?? 0);
   return buildEnvelope({
-    total: Number(totalResult[0]?.count ?? 0),
-    offset: tradeQuery.offset,
-    limit: tradeQuery.limit,
+    total,
+    offset: options?.unbounded ? 0 : tradeQuery.offset,
+    limit: options?.unbounded ? total : tradeQuery.limit,
     trades: rows,
     freshness,
   });
@@ -249,6 +253,149 @@ export function parseMemberSearch(body: { q?: unknown; name?: unknown }): string
 
 function likeContains(value: string): string {
   return `%${value.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+}
+
+export type LeaderMetric = "count" | "notional" | "buy" | "sell";
+
+export type OperationLeader = {
+  name: string;
+  count: number;
+  value: number;
+  chambers: string[];
+};
+
+export type OperationLeaders = {
+  total: number;
+  metric: LeaderMetric;
+  from: string | null;
+  to: string | null;
+  leaders: OperationLeader[];
+};
+
+const LEADER_METRICS = new Set<LeaderMetric>(["count", "notional", "buy", "sell"]);
+
+export function parseLeaderMetric(value: unknown): LeaderMetric | null {
+  if (value === undefined || value === null || value === "") return "count";
+  if (typeof value === "string" && LEADER_METRICS.has(value as LeaderMetric)) return value as LeaderMetric;
+  return null;
+}
+
+const METRIC_EXPR: Record<LeaderMetric, string> = {
+  count: "count(*)",
+  buy: "count(*) FILTER (WHERE trade_type = 'buy')",
+  sell: "count(*) FILTER (WHERE trade_type = 'sell')",
+  notional: "coalesce(sum(midpoint), 0)",
+};
+
+const SCORED_OPS = `WITH scored AS (
+  SELECT btrim(ops.member) AS member,
+         ops.chamber,
+         lower(btrim(ops.trade_type)) AS trade_type,
+         valued.midpoint
+  FROM (
+    SELECT member, chamber, trade_type, amount, tx_date FROM senate_trades
+    UNION ALL
+    SELECT member, chamber, trade_type, amount, tx_date FROM house_trades
+  ) AS ops
+  CROSS JOIN LATERAL (
+    SELECT CASE
+      WHEN cardinality(nums) = 0 THEN NULL::numeric
+      WHEN cardinality(nums) = 1 THEN nums[1]
+      ELSE (nums[1] + nums[cardinality(nums)]) / 2
+    END AS midpoint
+    FROM (
+      SELECT COALESCE(
+        ARRAY(
+          SELECT amount_match[1]::numeric
+          FROM regexp_matches(
+            regexp_replace(coalesce(ops.amount, ''), '[$,]', '', 'g'),
+            '\\d+(?:\\.\\d+)?',
+            'g'
+          ) AS amount_match
+        ),
+        ARRAY[]::numeric[]
+      ) AS nums
+    ) AS parsed
+  ) AS valued
+  WHERE btrim(ops.member) <> ''
+    AND ($1::date IS NULL OR ops.tx_date >= $1::date)
+    AND ($2::date IS NULL OR ops.tx_date <= $2::date)
+)`;
+
+export function parseLeaderDates(body: {
+  from?: unknown;
+  to?: unknown;
+  tx_date_from?: unknown;
+  tx_date_to?: unknown;
+  date_from?: unknown;
+  date_to?: unknown;
+}): { from: string | null; to: string | null } | null {
+  const from = readOptionalDate(body.from ?? body.tx_date_from ?? body.date_from);
+  const to = readOptionalDate(body.to ?? body.tx_date_to ?? body.date_to);
+  if (from === undefined || to === undefined) return null;
+  return { from, to };
+}
+
+function readOptionalDate(value: unknown): string | null | undefined {
+  if (value === undefined || value === null || value === "") return null;
+  if (typeof value !== "string") return undefined;
+  return isoDate(value) ?? undefined;
+}
+
+function asChambers(value: unknown): string[] {
+  if (Array.isArray(value)) return value.map((item) => String(item)).filter((item) => item !== "");
+  if (typeof value !== "string" || value === "{}") return [];
+  return value
+    .replace(/^\{|\}$/g, "")
+    .split(",")
+    .map((item) => item.trim().replace(/^"|"$/g, ""))
+    .filter(Boolean);
+}
+
+export async function queryOperationLeaders(
+  range: { from: string | null; to: string | null },
+  metric: LeaderMetric = "count",
+): Promise<OperationLeaders> {
+  const params = [range.from, range.to];
+  const valueExpr = METRIC_EXPR[metric];
+  const totalExpr = metric === "count" ? "operations" : metric === "buy" ? "buys" : metric === "sell" ? "sells" : "notional";
+  const [totalRow, leaders] = await Promise.all([
+    query<{ operations: number | string | bigint; buys: number | string | bigint; sells: number | string | bigint; notional: number | string | bigint }>(
+      `${SCORED_OPS}
+       SELECT count(*)::int AS operations,
+              count(*) FILTER (WHERE trade_type = 'buy')::int AS buys,
+              count(*) FILTER (WHERE trade_type = 'sell')::int AS sells,
+              coalesce(sum(midpoint), 0)::float8 AS notional
+       FROM scored`,
+      params,
+    ),
+    query<{ name: string; count: number | string | bigint; value: number | string | bigint; chambers: unknown }>(
+      `${SCORED_OPS}
+       SELECT min(member) AS name,
+              count(*)::int AS count,
+              (${valueExpr})::float8 AS value,
+              array_agg(DISTINCT chamber ORDER BY chamber) AS chambers
+       FROM scored
+       GROUP BY lower(member)
+       HAVING ${valueExpr} > 0
+       ORDER BY ${valueExpr} DESC, min(member) ASC
+       LIMIT 20`,
+      params,
+    ),
+  ]);
+  const totals = totalRow[0];
+  return {
+    total: Number(totals?.[totalExpr] ?? 0),
+    metric,
+    from: range.from,
+    to: range.to,
+    leaders: leaders.map((row) => ({
+      name: row.name,
+      count: Number(row.count),
+      value: Number(row.value),
+      chambers: asChambers(row.chambers),
+    })),
+  };
 }
 
 export async function queryMembers(nameQuery: string | null) {

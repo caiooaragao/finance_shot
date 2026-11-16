@@ -31,7 +31,7 @@ export function WorkflowControls() {
       <div className="flex flex-col gap-3 sm:flex-row">
         <form action={tickAction}>
           <button
-            className="flex h-11 items-center justify-center rounded-full bg-foreground px-5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:opacity-60 dark:hover:bg-[#ccc]"
+            className="flex h-11 cursor-pointer items-center justify-center rounded-full bg-foreground px-5 text-sm font-medium text-background transition-colors hover:bg-[#383838] disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-[#ccc]"
             type="submit"
             disabled={tickPending}
           >
@@ -40,7 +40,7 @@ export function WorkflowControls() {
         </form>
         <form action={scrapeAction}>
           <button
-            className="flex h-11 items-center justify-center rounded-full border border-solid border-black/[.08] px-5 text-sm font-medium transition-colors hover:bg-black/[.04] disabled:opacity-60 dark:border-white/[.145] dark:hover:bg-[#1a1a1a]"
+            className="flex h-11 cursor-pointer items-center justify-center rounded-full border border-solid border-black/[.08] px-5 text-sm font-medium transition-colors hover:bg-black/[.04] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[.145] dark:hover:bg-[#1a1a1a]"
             type="submit"
             disabled={scrapePending}
           >
@@ -58,7 +58,7 @@ export function WorkflowControls() {
           aria-label="Etapa para reabrir"
         />
         <button
-          className="h-11 rounded-full border border-black/[.08] px-5 text-sm font-medium dark:border-white/[.145]"
+          className="h-11 cursor-pointer rounded-full border border-black/[.08] px-5 text-sm font-medium transition-colors hover:bg-black/[.04] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[.145] dark:hover:bg-[#1a1a1a]"
           type="submit"
           disabled={retryPending}
         >
@@ -74,7 +74,7 @@ export function WorkflowControls() {
           aria-label="Etapa para cancelar"
         />
         <button
-          className="h-11 rounded-full border border-black/[.08] px-5 text-sm font-medium dark:border-white/[.145]"
+          className="h-11 cursor-pointer rounded-full border border-black/[.08] px-5 text-sm font-medium transition-colors hover:bg-black/[.04] disabled:cursor-not-allowed disabled:opacity-60 dark:border-white/[.145] dark:hover:bg-[#1a1a1a]"
           type="submit"
           disabled={cancelPending}
         >

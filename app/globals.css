@@ -33,3 +33,36 @@ body {
   background: #10b981;
   color: #00422b;
 }
+
+@layer base {
+  select {
+    color-scheme: dark;
+  }
+
+  select option {
+    background-color: var(--color-panel);
+    color: var(--color-ink);
+  }
+
+  select option:checked {
+    background-color: var(--color-panel-high);
+    color: var(--color-mint);
+  }
+
+  button:not(:disabled),
+  a[href],
+  [role="button"],
+  [type="submit"]:not(:disabled),
+  [type="button"]:not(:disabled),
+  [type="reset"]:not(:disabled),
+  select,
+  summary {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  select:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}

@@ -5,6 +5,8 @@ import {
   buildEnvelope,
   buildFreshness,
   ENVELOPE_KEYS,
+  parseLeaderDates,
+  parseLeaderMetric,
   parseMemberSearch,
   parseTradeQuery,
   TRADE_KEYS,
@@ -85,6 +87,26 @@ test("parseTradeQuery usa ticker do path com match exato", () => {
   assert.equal(query.ticker, "NVDA");
   assert.equal(query.tickerExact, true);
   assert.equal(query.memberExact, false);
+});
+
+test("parseLeaderDates aceita o período e rejeita data inválida", () => {
+  assert.deepEqual(parseLeaderDates({}), { from: null, to: null });
+  assert.deepEqual(parseLeaderDates({ from: "2024-01-01", to: "2024-12-31" }), {
+    from: "2024-01-01",
+    to: "2024-12-31",
+  });
+  assert.deepEqual(parseLeaderDates({ tx_date_from: "2020-05-02" }), { from: "2020-05-02", to: null });
+  assert.equal(parseLeaderDates({ from: "ontem" }), null);
+  assert.equal(parseLeaderDates({ to: 2024 }), null);
+});
+
+test("parseLeaderMetric aceita as medidas do gráfico", () => {
+  assert.equal(parseLeaderMetric(undefined), "count");
+  assert.equal(parseLeaderMetric(""), "count");
+  assert.equal(parseLeaderMetric("notional"), "notional");
+  assert.equal(parseLeaderMetric("buy"), "buy");
+  assert.equal(parseLeaderMetric("sell"), "sell");
+  assert.equal(parseLeaderMetric("dinheiro"), null);
 });
 
 test("parseMemberSearch lê q ou name do json e ignora vazio", () => {

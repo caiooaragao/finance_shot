@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
+import { OperationsBoard } from "./operations-board";
+
 type Trade = {
   member: string;
   chamber: string;
@@ -327,6 +329,7 @@ export function CapitolDashboard() {
       </header>
 
       <main className="flex flex-col gap-4 px-4 pt-20 pb-8">
+        <OperationsBoard />
         <section className="order-2 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
           <Kpi
             label="Operações na consulta"
@@ -516,14 +519,14 @@ export function CapitolDashboard() {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="submit"
-                  className="rounded-lg bg-mint px-3 py-1.5 text-[13px] font-semibold text-[#00422b]"
+                  className="rounded-lg bg-mint px-3 py-1.5 text-[13px] font-semibold text-[#00422b] transition-colors hover:brightness-110"
                 >
                   Consultar ledger
                 </button>
                 <button
                   type="button"
                   onClick={runTicker}
-                  className="rounded-lg bg-panel-high px-3 py-1.5 font-mono text-[11px] font-bold tracking-wide text-mint uppercase"
+                  className="rounded-lg bg-panel-high px-3 py-1.5 font-mono text-[11px] font-bold tracking-wide text-mint uppercase transition-colors hover:bg-panel hover:text-mint-deep"
                 >
                   GET /api/trades/{"{ticker}"}
                 </button>
@@ -534,7 +537,7 @@ export function CapitolDashboard() {
                     setEndpoint("recent");
                     setRequest({ kind: "trades", endpoint: "recent", filters: INITIAL_FILTERS });
                   }}
-                  className="rounded-lg bg-canvas px-3 py-1.5 text-[13px] text-ink-dim"
+                  className="rounded-lg bg-canvas px-3 py-1.5 text-[13px] text-ink-dim transition-colors hover:bg-panel-high hover:text-ink"
                 >
                   Limpar
                 </button>
@@ -616,7 +619,7 @@ export function CapitolDashboard() {
                     type="button"
                     disabled={meta.offset <= 0 || loading}
                     onClick={() => turnPage(Math.max(0, meta.offset - meta.limit))}
-                    className="rounded bg-canvas px-2 py-1 font-mono text-[10px] tracking-wider text-line uppercase disabled:opacity-40"
+                    className="rounded bg-canvas px-2 py-1 font-mono text-[10px] tracking-wider text-line uppercase transition-colors hover:bg-panel-high hover:text-ink disabled:opacity-40 disabled:hover:bg-canvas disabled:hover:text-line"
                   >
                     Prev
                   </button>
@@ -627,7 +630,7 @@ export function CapitolDashboard() {
                     type="button"
                     disabled={!meta.has_more || loading}
                     onClick={() => turnPage(meta.offset + meta.limit)}
-                    className="rounded bg-canvas px-2 py-1 font-mono text-[10px] tracking-wider text-line uppercase disabled:opacity-40"
+                    className="rounded bg-canvas px-2 py-1 font-mono text-[10px] tracking-wider text-line uppercase transition-colors hover:bg-panel-high hover:text-ink disabled:opacity-40 disabled:hover:bg-canvas disabled:hover:text-line"
                   >
                     Next
                   </button>
@@ -664,7 +667,7 @@ export function CapitolDashboard() {
                 <button
                   type="submit"
                   disabled={memberBusy}
-                  className="mt-4 h-8 rounded-lg bg-mint px-3 text-[12px] font-semibold text-[#00422b] disabled:opacity-60"
+                  className="mt-4 h-8 rounded-lg bg-mint px-3 text-[12px] font-semibold text-[#00422b] transition-colors hover:brightness-110 disabled:opacity-60 disabled:hover:brightness-100"
                 >
                   Buscar
                 </button>
@@ -674,7 +677,7 @@ export function CapitolDashboard() {
                 type="button"
                 disabled={memberBusy}
                 onClick={() => void listMembers()}
-                className="h-8 rounded-lg bg-canvas text-[12px] text-ink-dim disabled:opacity-60"
+                className="h-8 rounded-lg bg-canvas px-3 text-[12px] text-ink-dim transition-colors hover:bg-panel-high hover:text-ink disabled:opacity-60 disabled:hover:bg-canvas disabled:hover:text-ink-dim"
               >
                 Listar todos · POST /api/members
               </button>
@@ -685,7 +688,7 @@ export function CapitolDashboard() {
                     <button
                       type="button"
                       onClick={() => openMember(member.name)}
-                      className="flex w-full items-center justify-between gap-2 rounded-lg bg-panel-low px-2 py-1.5 text-left hover:bg-panel-high"
+                      className="flex w-full items-center justify-between gap-2 rounded-lg bg-panel-low px-2 py-1.5 text-left transition-colors hover:bg-panel-high"
                     >
                       <span className="truncate text-[13px] font-semibold">{member.name}</span>
                       <span className="shrink-0 font-mono text-[10px] text-line uppercase">
@@ -731,7 +734,10 @@ export function CapitolDashboard() {
                   />
                 </Field>
               </div>
-              <button type="submit" className="h-8 rounded-lg bg-panel-high text-[13px] font-semibold text-mint">
+              <button
+                type="submit"
+                className="h-8 rounded-lg bg-panel-high px-3 text-[13px] font-semibold text-mint transition-colors hover:bg-panel hover:text-mint-deep"
+              >
                 Carregar trades
               </button>
             </form>
@@ -789,7 +795,7 @@ function TradeRow({ trade }: { trade: Trade }) {
             href={trade.link}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex rounded bg-canvas px-2 py-1 font-mono text-[10px] text-line hover:bg-mint hover:text-[#00422b]"
+            className="inline-flex rounded bg-canvas px-2 py-1 font-mono text-[10px] text-line transition-colors hover:bg-mint hover:text-[#00422b]"
           >
             PTR
           </a>
@@ -937,8 +943,10 @@ function Pill({ active, onClick, children }: { active: boolean; onClick: () => v
     <button
       type="button"
       onClick={onClick}
-      className={`rounded px-2 py-1 font-mono text-[10px] font-bold tracking-wider uppercase ${
-        active ? "bg-panel-high text-mint" : "bg-canvas text-ink-dim"
+      className={`rounded px-2 py-1 font-mono text-[10px] font-bold tracking-wider uppercase transition-colors ${
+        active
+          ? "bg-panel-high text-mint hover:brightness-110"
+          : "bg-canvas text-ink-dim hover:bg-panel-high hover:text-ink"
       }`}
     >
       {children}
