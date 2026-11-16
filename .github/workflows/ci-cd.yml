@@ -1,0 +1,133 @@
+# CI em PR e push na main; deploy automático na VPS após CI verde (push na main ou manual).
+#
+# Secrets (Settings → Secrets and variables → Actions):
+#   DEPLOY_HOST       ex.: 169.58.139.187
+#   DEPLOY_USER       ex.: root
+#   DEPLOY_SSH_KEY    chave privada OpenSSH (conteúdo completo do arquivo)
+#   DEPLOY_PATH       opcional; padrão /opt/caio_projetos/finance_shot
+#
+# Variável de repositório: ENABLE_VPS_DEPLOY = true (Settings → Secrets and variables → Actions → Variables)
+#
+# Environment "production" (opcional): aprovação manual antes do deploy.
+
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "20"
+  DATABASE_URL: postgresql://ci:ci@localhost:5432/ci
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm test
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+        env:
+          DATABASE_URL: ${{ env.DATABASE_URL }}
+
+  deploy:
+    name: Deploy (VPS)
+    runs-on: ubuntu-latest
+    needs: build
+    if: |
+      vars.ENABLE_VPS_DEPLOY == 'true' && (
+        (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+        github.event_name == 'workflow_dispatch'
+      )
+    environment: production
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    timeout-minutes: 45
+    steps:
+      - name: Check deploy secrets
+        run: |
+          missing=0
+          for key in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Secret $key não configurado."
+              missing=1
+            fi
+          done
+          [ "$missing" -eq 0 ]
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Deploy via SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          DEPLOY_PATH="${DEPLOY_PATH:-/opt/caio_projetos/finance_shot}"
+          APP_PORT="${APP_PORT:-7000}"
+
+          install -m 700 -d ~/.ssh
+          echo "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o StrictHostKeyChecking=yes \
+            "${DEPLOY_USER}@${DEPLOY_HOST}" bash -s <<EOF
+          set -euo pipefail
+          cd "${DEPLOY_PATH}"
+          git fetch origin main
+          git reset --hard origin/main
+          bash deploy.sh
+          sleep 3
+          curl -sf "http://127.0.0.1:${APP_PORT}/api/health" >/dev/null
+          echo "Deploy OK — app respondendo em :${APP_PORT}"
+          EOF
+
+      - name: Remove deploy key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
